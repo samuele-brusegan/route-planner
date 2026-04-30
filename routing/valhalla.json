@@ -1,0 +1,72 @@
+{
+  "mjolnir": {
+    "tile_dir": "/data/valhalla_tiles",
+    "tile_extract": "/data/tiles.tar",
+    "timezone": "/data/timezones.sqlite",
+    "auto_include": [],
+    "admin": {}
+  },
+  "thor": {
+    "logging": {
+      "long_request": 10,
+      "type": "std_out"
+    },
+    "source": "valhalla_tiles",
+    "max_alternates": 1,
+    "exclude_polygons": []
+  },
+  "odin": {
+    "logging": {
+      "type": "std_out"
+    },
+    "description": "valhalla",
+    "mode": "auto",
+    "language": "it-IT",
+    "directions_options": {
+      "units": "kilometers"
+    }
+  },
+  "skadi": {
+    "actually_do_work": true,
+    "tile_dir": "/data/elevation_tiles",
+    "tile_extract": "/data/elevation.tar"
+  },
+  "service_limits": {
+    "max_matrix_distance": 500000.0,
+    "max_matrix_locations": 50,
+    "max_routes_distance": 500000.0,
+    "max_routes_locations": 50,
+    "max_timedistance_distance": 500000.0,
+    "max_timedistance_locations": 50,
+    "max_trace_distance": 200000.0,
+    "max_trace_locations": 300,
+    "max_alternates": 2,
+    "max_isochrone_distance": 25000.0,
+    "max_location_distance": 50000.0,
+    "max_exclude_polygons": 10
+  },
+  "costing": {
+    "pedestrian": {
+      "type": "pedestrian",
+      "shorter": false,
+      "walking_speed": 5.1,
+      "walkway_factor": 1.0,
+      "alley_factor": 1.0,
+      "driveway_factor": 5.0,
+      "pedestrian": {
+        "use_ferry": 0.5,
+        "use_lit": 0.5,
+        "use_lit_factor": 0.5,
+        "use_highway": 0.5,
+        "use_highway_factor": 0.5,
+        "use_tracks": 0.5,
+        "use_tracks_factor": 0.5,
+        "use_paths": 0.5,
+        "use_paths_factor": 0.5
+      },
+      "speed_factor": 1.0,
+      "max_hiking_difficulty": 1,
+      "exclude_polygons": []
+    }
+  }
+}

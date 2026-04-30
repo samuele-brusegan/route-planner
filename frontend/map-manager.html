@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Manager - Route Planner</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a90a4">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+</head>
+<body>
+    <!-- Menu Bar -->
+    <div id="menu-bar">
+        <div class="menu-item" id="menu-back">← Torna all'App</div>
+    </div>
+
+    <div class="map-manager-page">
+        <div class="page-header">
+            <h1>Gestione Mappe Offline</h1>
+            <p>Scarica e gestisci le mappe regionali per l'uso offline</p>
+        </div>
+
+        <!-- Offline Mode Toggle -->
+        <div class="offline-mode-section">
+            <div class="toggle-container">
+                <label class="toggle-label">
+                    <input type="checkbox" id="offline-mode-toggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">Modalità Offline</span>
+                </label>
+            </div>
+            <p class="toggle-description">
+                In modalità offline, l'app utilizzerà solo le mappe scaricate localmente.
+            </p>
+        </div>
+
+        <!-- Region Selection -->
+        <div class="region-selection-section">
+            <h2>Seleziona Regione</h2>
+            <div class="filter-controls">
+                <input type="text" id="region-filter" placeholder="Filtra regioni (es. Italia, Europa)...">
+                <select id="area-filter">
+                    <option value="">Tutte le aree</option>
+                    <option value="europe">Europa</option>
+                    <option value="italy">Italia</option>
+                    <option value="france">Francia</option>
+                    <option value="germany">Germania</option>
+                </select>
+            </div>
+            <div id="regions-list" class="regions-list">
+                <div class="loading">Caricamento regioni...</div>
+            </div>
+        </div>
+
+        <!-- Download Status -->
+        <div class="download-status-section">
+            <h2>Stato Download</h2>
+            <div id="download-status-list" class="download-status-list">
+                <p>Nessun download in corso</p>
+            </div>
+        </div>
+
+        <!-- Downloaded Regions -->
+        <div class="downloaded-regions-section">
+            <h2>Regioni Scaricate</h2>
+            <div id="downloaded-regions-list" class="downloaded-regions-list">
+                <p>Nessuna regione scaricata</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/map-manager.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').then((registration) => {
+                console.log('Service Worker registered with scope:', registration.scope);
+            }).catch((error) => {
+                console.log('Service Worker registration failed:', error);
+            });
+        }
+    </script>
+</body>
+</html>

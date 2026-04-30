@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Planner</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a90a4">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Standard Menu Bar -->
+    <div id="menu-bar">
+        <div class="menu-item" id="menu-file">File</div>
+        <div class="menu-item" id="menu-edit">Modifica</div>
+        <div class="menu-item" id="menu-view">Visualizza</div>
+        <div class="menu-item" id="menu-maps">Mappe</div>
+    </div>
+
+    <!-- File Dropdown -->
+    <div id="dropdown-file" class="dropdown hidden">
+        <div class="dropdown-item" id="new-route">Nuova Route</div>
+        <div class="dropdown-item" id="import-json">Importa JSON</div>
+        <div class="dropdown-item" id="export-json">Esporta JSON</div>
+        <div class="dropdown-item" id="export-page">Pagina Esportazione</div>
+    </div>
+
+    <!-- Edit Dropdown -->
+    <div id="dropdown-edit" class="dropdown hidden">
+        <div class="dropdown-item" id="undo">Annulla</div>
+        <div class="dropdown-item" id="redo">Ripeti</div>
+        <div class="dropdown-item" id="clear-markers">Cancella Tutto</div>
+    </div>
+
+    <!-- View Dropdown -->
+    <div id="dropdown-view" class="dropdown hidden">
+        <div class="dropdown-item" id="toggle-left-panel">Pannello Sinistro</div>
+        <div class="dropdown-item" id="toggle-right-panel">Pannello Destro</div>
+        <div class="dropdown-item" id="toggle-bottom-panel">Pannello Inferiore</div>
+        <div class="dropdown-item" id="offline-maps">Mappe Offline (Tile)</div>
+    </div>
+
+    <!-- Maps Dropdown -->
+    <div id="dropdown-maps" class="dropdown hidden">
+        <div class="dropdown-item" id="map-manager">Gestione Mappe Regionali</div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Left Panel - Route Management -->
+    <div id="left-panel" class="panel left-panel">
+        <div class="panel-header">
+            <h3>Route</h3>
+            <button class="close-btn" data-panel="left-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="markers-list"></div>
+            <button id="add-marker-btn" class="btn primary">Aggiungi Punto</button>
+        </div>
+    </div>
+
+    <!-- Right Panel - Marker Types -->
+    <div id="right-panel" class="panel right-panel">
+        <div class="panel-header">
+            <h3>Tipi Segnaposti</h3>
+            <button class="close-btn" data-panel="right-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="marker-types-list"></div>
+            <button id="add-marker-type-btn" class="btn primary">Nuovo Tipo</button>
+        </div>
+    </div>
+
+    <!-- Bottom Panel - Statistics -->
+    <div id="bottom-panel" class="panel bottom-panel">
+        <div class="panel-header">
+            <h3>Statistiche</h3>
+            <button class="close-btn" data-panel="bottom-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="stats-container">
+                <div class="stat-box">
+                    <span class="stat-label">Lunghezza Totale:</span>
+                    <span class="stat-value" id="total-distance">0 km</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Dislivello Positivo:</span>
+                    <span class="stat-value" id="total-ascent">0 m</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Dislivello Negativo:</span>
+                    <span class="stat-value" id="total-descent">0 m</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Tempo Stimato:</span>
+                    <span class="stat-value" id="total-time">0h 0m</span>
+                </div>
+            </div>
+            <div id="daily-stats"></div>
+        </div>
+    </div>
+
+    <!-- Top Panel - Chart -->
+    <div id="top-panel" class="panel top-panel">
+        <div class="panel-header">
+            <h3>Profilo Altimetrico</h3>
+            <button class="close-btn" data-panel="top-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <canvas id="elevation-chart"></canvas>
+            <button id="download-chart" class="btn secondary">Scarica Grafico</button>
+        </div>
+    </div>
+
+    <!-- Directions Panel -->
+    <div id="directions-panel" class="panel directions-panel">
+        <div class="panel-header">
+            <h3>Indicazioni</h3>
+            <button class="close-btn" data-panel="directions-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="directions-list"></div>
+            <button id="add-direction-note-btn" class="btn primary">Aggiungi Nota</button>
+        </div>
+    </div>
+
+    <!-- Export Page -->
+    <div id="export-page" class="page hidden">
+        <div class="page-header">
+            <h2>Esportazione</h2>
+            <button id="close-export-page" class="btn secondary">Chiudi</button>
+        </div>
+        <div class="page-content">
+            <div class="export-section">
+                <h3>GPX</h3>
+                <button id="export-gpx-full" class="btn primary">Esporta GPX Completo</button>
+                <button id="export-gpx-split" class="btn primary">Esporta GPX per Giorni</button>
+            </div>
+            <div class="export-section">
+                <h3>Mappa</h3>
+                <button id="export-map-png" class="btn primary">Esporta Mappa PNG</button>
+                <button id="export-map-pdf" class="btn primary">Esporta Mappa PDF</button>
+            </div>
+            <div class="export-section">
+                <h3>Indicazioni</h3>
+                <button id="export-directions-pdf" class="btn primary">Esporta Indicazioni PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for import -->
+    <input type="file" id="file-input" accept=".json" style="display: none;">
+
+    <!-- Offline Maps Modal -->
+    <div id="offline-maps-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Scarica Mappe Offline</h3>
+            <select id="region-select">
+                <option value="">Seleziona regione...</option>
+                <option value="italy-north">Italia Nord</option>
+                <option value="italy-center">Italia Centro</option>
+                <option value="italy-south">Italia Sud</option>
+                <option value="italy-all">Italia Completa</option>
+            </select>
+            <div>
+                <label>Zoom minimo:</label>
+                <input type="number" id="min-zoom" value="8" min="1" max="18">
+            </div>
+            <div>
+                <label>Zoom massimo:</label>
+                <input type="number" id="max-zoom" value="12" min="1" max="18">
+            </div>
+            <div id="download-progress" style="display: none;">
+                <progress id="progress-bar" value="0" max="100"></progress>
+                <span id="progress-text">0 / 0 tile</span>
+            </div>
+            <div class="modal-actions">
+                <button class="btn secondary" id="cancel-download">Annulla</button>
+                <button class="btn primary" id="start-download">Scarica</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/map.js"></script>
+    <script src="js/routing.js"></script>
+    <script src="js/markers.js"></script>
+    <script src="js/stats.js"></script>
+    <script src="js/chart.js"></script>
+    <script src="js/directions.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/offline-maps.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').then((registration) => {
+                console.log('Service Worker registered with scope:', registration.scope);
+            }).catch((error) => {
+                console.log('Service Worker registration failed:', error);
+            });
+        }
+    </script>
+</body>
+</html>

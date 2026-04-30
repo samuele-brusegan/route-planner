@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mappe Offline - Route Planner</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a90a4">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+</head>
+<body>
+    <!-- Menu Bar -->
+    <div id="menu-bar">
+        <div class="menu-item" id="menu-back">← Torna all'App</div>
+    </div>
+
+    <div class="offline-maps-page">
+        <div class="page-header">
+            <h1>Mappe Offline</h1>
+            <p>Scarica le mappe per utilizzarle senza connessione internet</p>
+        </div>
+
+        <!-- Hierarchical Selector -->
+        <div class="region-selector">
+            <div class="selector-level">
+                <label>Mondo</label>
+                <select id="world-select">
+                    <option value="">Seleziona...</option>
+                    <option value="world">Mondo Intero</option>
+                </select>
+            </div>
+
+            <div class="selector-level" id="continent-level" style="display: none;">
+                <label>Continente</label>
+                <select id="continent-select">
+                    <option value="">Seleziona continente...</option>
+                </select>
+            </div>
+
+            <div class="selector-level" id="country-level" style="display: none;">
+                <label>Stato</label>
+                <select id="country-select">
+                    <option value="">Seleziona stato...</option>
+                </select>
+            </div>
+
+            <div class="selector-level" id="region-level" style="display: none;">
+                <label>Regione</label>
+                <select id="region-select">
+                    <option value="">Seleziona regione...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Map Type Selection -->
+        <div class="map-types-section" id="map-types-section" style="display: none;">
+            <h2>Tipi di Mappa</h2>
+            <div class="map-type-cards">
+                <div class="map-type-card" data-type="full">
+                    <div class="card-icon">🗺️</div>
+                    <h3>Mappa Completa</h3>
+                    <p>Mappa topografica completa con tutti i dettagli</p>
+                    <div class="download-info">
+                        <span class="size-estimate" id="size-full">-- MB</span>
+                        <button class="btn primary download-btn" data-type="full">Scarica</button>
+                    </div>
+                </div>
+
+                <div class="map-type-card" data-type="roads">
+                    <div class="card-icon">🛣️</div>
+                    <h3>Solo Strade</h3>
+                    <p>Solo rete stradale e percorsi</p>
+                    <div class="download-info">
+                        <span class="size-estimate" id="size-roads">-- MB</span>
+                        <button class="btn primary download-btn" data-type="roads">Scarica</button>
+                    </div>
+                </div>
+
+                <div class="map-type-card" data-type="contours">
+                    <div class="card-icon">⛰️</div>
+                    <h3>Isoipse e Isobate</h3>
+                    <p>Linee di livello e curve batimetriche</p>
+                    <div class="download-info">
+                        <span class="size-estimate" id="size-contours">-- MB</span>
+                        <button class="btn primary download-btn" data-type="contours">Scarica</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Progress -->
+        <div class="download-progress-section" id="download-progress-section" style="display: none;">
+            <h2>Download in Corso</h2>
+            <div class="progress-container">
+                <progress id="download-progress-bar" value="0" max="100"></progress>
+                <div class="progress-info">
+                    <span id="download-progress-text">0 / 0 tile</span>
+                    <span id="download-speed">0 MB/s</span>
+                </div>
+            </div>
+            <button class="btn secondary" id="cancel-download-btn">Annulla Download</button>
+        </div>
+
+        <!-- Downloaded Maps -->
+        <div class="downloaded-maps-section">
+            <h2>Mappe Scaricate</h2>
+            <div id="downloaded-maps-list"></div>
+            <button class="btn danger" id="clear-all-maps">Cancella Tutte le Mappe</button>
+        </div>
+    </div>
+
+    <script src="js/offline-maps.js"></script>
+    <script src="js/offline-maps-page.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').then((registration) => {
+                console.log('Service Worker registered with scope:', registration.scope);
+            }).catch((error) => {
+                console.log('Service Worker registration failed:', error);
+            });
+        }
+    </script>
+</body>
+</html>

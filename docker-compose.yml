@@ -1,0 +1,36 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "8083:80"
+    depends_on:
+      - routing
+      - export
+    networks:
+      - route-planner-network
+
+  routing:
+    build: ./routing
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./data:/data
+    networks:
+      - route-planner-network
+    shm_size: '2gb'
+
+  export:
+    build: ./export
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - route-planner-network
+    depends_on:
+      - routing
+
+networks:
+  route-planner-network:
+    driver: bridge
