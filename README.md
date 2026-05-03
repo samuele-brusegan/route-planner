@@ -42,7 +42,7 @@ L'applicazione utilizza 4 container Docker:
 
 2. **Avvia i container Docker**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 3. **Accedi all'applicazione**
@@ -281,16 +281,16 @@ I file frontend sono montati come volume, quindi le modifiche sono immediate:
 
 ```bash
 # Ricostruisci il container routing
-docker-compose build routing
-docker-compose up -d routing
+docker compose build routing
+docker compose up -d routing
 ```
 
 ### Modificare il Servizio Export
 
 ```bash
 # Ricostruisci il container export
-docker-compose build export
-docker-compose up -d export
+docker compose build export
+docker compose up -d export
 ```
 
 ## Troubleshooting
@@ -298,19 +298,19 @@ docker-compose up -d export
 ### Il routing non funziona
 
 - Verifica di aver scaricato e costruito i tile OSM
-- Controlla che il container routing sia in esecuzione: `docker-compose ps`
-- Controlla i log del routing: `docker-compose logs routing`
+- Controlla che il container routing sia in esecuzione: `docker compose ps`
+- Controlla i log del routing: `docker compose logs routing`
 
 ### L'export PDF non funziona
 
 - Verifica che il container export sia in esecuzione
-- Controlla i log: `docker-compose logs export`
+- Controlla i log: `docker compose logs export`
 - Il servizio richiede più memoria per Puppeteer
 
 ### La mappa non carica
 
 - Verifica la connessione internet (OSM Topo richiede connessione)
-- Controlla i log del frontend: `docker-compose logs frontend`
+- Controlla i log del frontend: `docker compose logs frontend`
 
 ## Licenza
 
