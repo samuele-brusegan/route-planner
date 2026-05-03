@@ -4,30 +4,74 @@ const {
     getRegions,
     downloadAndBuildRegion,
     getStatus,
-    getAllStatuses
+    getAllStatuses,
+    deleteRegionData
 } = require('./regions-manager');
 const { getTile, getMetadata, closeAllConnections } = require('./tiles-server');
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
 
-// Export map as PNG (placeholder - client-side only)
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+
+    next();
+});
+
 app.post('/export/map/png', async (req, res) => {
     try {
-        // PNG export is handled client-side
-        res.status(501).json({ error: 'PNG export handled client-side' });
+        const { imageDataUrl } = req.body;
+        if (!imageDataUrl || typeof imageDataUrl !== 'string') {
+            return res.status(400).json({ error: 'imageDataUrl is required' });
+        }
+
+        const base64 = imageDataUrl.includes(',') ? imageDataUrl.split(',')[1] : imageDataUrl;
+        const pngBuffer = Buffer.from(base64, 'base64');
+
+        res.set('Content-Type', 'image/png');
+        res.set('Content-Length', String(pngBuffer.length));
+        res.send(pngBuffer);
     } catch (error) {
         console.error('PNG export error:', error);
         res.status(500).json({ error: 'Export failed' });
     }
 });
 
-// Export map as PDF (placeholder - not implemented without Puppeteer)
 app.post('/export/map/pdf', async (req, res) => {
     try {
-        // Map PDF export requires Puppeteer or similar
-        res.status(501).json({ error: 'Map PDF export not available without Puppeteer' });
+        const { imageDataUrl, title = 'Route Planner' } = req.body;
+        if (!imageDataUrl || typeof imageDataUrl !== 'string') {
+            return res.status(400).json({ error: 'imageDataUrl is required' });
+        }
+
+        const base64 = imageDataUrl.includes(',') ? imageDataUrl.split(',')[1] : imageDataUrl;
+        const pngBuffer = Buffer.from(base64, 'base64');
+
+        const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+        const chunks = [];
+
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', () => {
+            const pdfBuffer = Buffer.concat(chunks);
+            res.set('Content-Type', 'application/pdf');
+            res.send(pdfBuffer);
+        });
+
+        doc.fontSize(18).text(title, { align: 'center' });
+        doc.moveDown();
+        doc.image(pngBuffer, {
+            fit: [760, 480],
+            align: 'center',
+            valign: 'center'
+        });
+
+        doc.end();
     } catch (error) {
         console.error('PDF export error:', error);
         res.status(500).json({ error: 'Export failed' });
@@ -153,6 +197,17 @@ app.get('/status', (req, res) => {
     res.json({ statuses });
 });
 
+app.delete('/regions/:regionId', async (req, res) => {
+    try {
+        const { regionId } = req.params;
+        const result = await deleteRegionData(regionId);
+        res.json(result);
+    } catch (error) {
+        console.error('Error deleting region:', error);
+        res.status(500).json({ error: 'Failed to delete region' });
+    }
+});
+
 // Serve vector tiles from MBTiles
 app.get('/tiles/:regionId/:z/:x/:y.pbf', async (req, res) => {
     try {
@@ -196,8 +251,5 @@ app.listen(PORT, () => {
 // Cleanup on exit
 process.on('SIGTERM', async () => {
     closeAllConnections();
-    if (browser) {
-        await browser.close();
-    }
     process.exit(0);
 });

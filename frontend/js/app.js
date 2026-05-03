@@ -17,11 +17,18 @@ const AppState = {
     dailyStats: []
 };
 
+AppState.routeColor = '#4a90a4';
+AppState.routingEngine = 'valhalla';
+AppState.routingProfile = 'walking';
+AppState.showRoutingDebug = false;
+AppState.showOsmGraph = false;
+AppState.routingError = null;
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
     await initMap();
     initUI();
-    loadFromLocalStorage();
+    await loadFromLocalStorage();
 });
 
 // Save to localStorage
@@ -30,13 +37,19 @@ function saveToLocalStorage() {
         markers: AppState.markers,
         markerTypes: AppState.markerTypes,
         route: AppState.route,
-        directions: AppState.directions
+        directions: AppState.directions,
+        routeColor: AppState.routeColor,
+        routingEngine: AppState.routingEngine,
+        routingProfile: AppState.routingProfile,
+        showRoutingDebug: AppState.showRoutingDebug,
+        showOsmGraph: AppState.showOsmGraph,
+        routingError: AppState.routingError
     };
     localStorage.setItem('routePlannerData', JSON.stringify(data));
 }
 
 // Load from localStorage
-function loadFromLocalStorage() {
+async function loadFromLocalStorage() {
     const data = localStorage.getItem('routePlannerData');
     if (data) {
         const parsed = JSON.parse(data);
@@ -44,6 +57,13 @@ function loadFromLocalStorage() {
         AppState.markerTypes = parsed.markerTypes || AppState.markerTypes;
         AppState.route = parsed.route || null;
         AppState.directions = parsed.directions || [];
+        AppState.routeColor = parsed.routeColor || AppState.routeColor;
+        AppState.routingEngine = parsed.routingEngine || AppState.routingEngine;
+        AppState.routingProfile = parsed.routingProfile || AppState.routingProfile;
+        AppState.showRoutingDebug = parsed.showRoutingDebug || false;
+        AppState.showOsmGraph = parsed.showOsmGraph || false;
+        AppState.routingError = parsed.routingError || null;
+        applyRouteStyle();
         
         // Restore markers on map
         AppState.markers.forEach(marker => {
@@ -53,6 +73,10 @@ function loadFromLocalStorage() {
         // Restore route if exists
         if (AppState.route) {
             displayRoute(AppState.route);
+            updateRoutingDebugLayer(AppState.route);
+            updateOsmGraphLayer();
+            await calculateStatistics();
+            await updateElevationChart();
         }
         
         updateUI();
@@ -65,6 +89,7 @@ function clearAll() {
         AppState.markers = [];
         AppState.route = null;
         AppState.directions = [];
+        AppState.routingError = null;
         AppState.stats = {
             totalDistance: 0,
             totalAscent: 0,
@@ -87,6 +112,12 @@ function exportJSON() {
         markerTypes: AppState.markerTypes,
         route: AppState.route,
         directions: AppState.directions,
+        routeColor: AppState.routeColor,
+        routingEngine: AppState.routingEngine,
+        routingProfile: AppState.routingProfile,
+        showRoutingDebug: AppState.showRoutingDebug,
+        showOsmGraph: AppState.showOsmGraph,
+        routingError: AppState.routingError,
         exportDate: new Date().toISOString()
     };
     
@@ -102,7 +133,7 @@ function exportJSON() {
 // Import JSON
 function importJSON(file) {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
             
@@ -120,6 +151,13 @@ function importJSON(file) {
             AppState.markerTypes = data.markerTypes || AppState.markerTypes;
             AppState.route = data.route || null;
             AppState.directions = data.directions || [];
+            AppState.routeColor = data.routeColor || AppState.routeColor;
+            AppState.routingEngine = data.routingEngine || AppState.routingEngine;
+            AppState.routingProfile = data.routingProfile || AppState.routingProfile;
+            AppState.showRoutingDebug = data.showRoutingDebug || false;
+            AppState.showOsmGraph = data.showOsmGraph || false;
+            AppState.routingError = data.routingError || null;
+            applyRouteStyle();
             
             // Restore markers on map
             AppState.markers.forEach(marker => {
@@ -129,6 +167,10 @@ function importJSON(file) {
             // Restore route if exists
             if (AppState.route) {
                 displayRoute(AppState.route);
+                updateRoutingDebugLayer(AppState.route);
+                updateOsmGraphLayer();
+                await calculateStatistics();
+                await updateElevationChart();
             }
             
             saveToLocalStorage();
@@ -148,6 +190,9 @@ function updateUI() {
     updateMarkerTypesList();
     updateStatistics();
     updateDirectionsList();
+    updateRouteStyleControls();
+    updateRoutingControls();
+    updateRoutingDiagnostics();
 }
 
 // Calculate time estimate using Naismith's formula

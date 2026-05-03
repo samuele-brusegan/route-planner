@@ -10,14 +10,15 @@ fi
 
 OSM_FILE=$1
 TILE_DIR=/data/valhalla_tiles
+CONFIG_FILE=/data/valhalla.generated.json
 
 echo "Building Valhalla tiles from $OSM_FILE..."
 
 # Create tile directory
-mkdir -p $TILE_DIR
+mkdir -p "$TILE_DIR"
 
-# Build tiles
-valhalla_build_config --mjolnir-tile-dir $TILE_DIR --mjolnir-tile-extract /data/tiles.tar > /etc/valhalla.json
-valhalla_build_tiles -c /etc/valhalla.json $OSM_FILE
+# Build tiles and extract using the runtime config generated at boot
+valhalla_build_tiles -c "$CONFIG_FILE" "$OSM_FILE"
+valhalla_build_extract -c "$CONFIG_FILE" -v
 
 echo "Tiles built successfully!"

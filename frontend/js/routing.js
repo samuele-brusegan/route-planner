@@ -1,11 +1,12 @@
 // Routing integration with Valhalla
-const ROUTING_API_URL = 'http://routing:8002';
+const ROUTING_API_URL = `${window.location.protocol}//${window.location.hostname}:8002`;
 
 // Calculate route between markers
 async function calculateRoute() {
     if (AppState.markers.length < 2) return;
     
     try {
+        AppState.routingError = null;
         // Build locations array
         const locations = AppState.markers.map(m => ({
             lon: m.lon,
@@ -20,7 +21,8 @@ async function calculateRoute() {
             },
             body: JSON.stringify({
                 locations: locations,
-                costing: 'pedestrian',
+                engine: AppState.routingEngine,
+                profile: AppState.routingProfile,
                 directions_options: {
                     language: 'it'
                 }
@@ -28,7 +30,8 @@ async function calculateRoute() {
         });
         
         if (!response.ok) {
-            throw new Error('Errore nel calcolo della route');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || 'Routing non disponibile');
         }
         
         const data = await response.json();
@@ -41,7 +44,20 @@ async function calculateRoute() {
             }),
             distance: data.trip.summary.length,
             time: data.trip.summary.time,
-            elevation: data.trip.summary.elevation_gain || 0
+            elevation: data.trip.summary.elevation_gain || 0,
+            engine: data.trip.summary.engine || AppState.routingEngine,
+            profile: data.trip.summary.profile || AppState.routingProfile,
+            routingBackend: data.trip.summary.routing_backend || 'unknown',
+            localGraphReady: Boolean(data.trip.summary.tiles_ready),
+            activeRegion: data.trip.summary.active_region || null,
+            lastBuiltAt: data.trip.summary.last_built_at || null,
+            snappedLocations: data.trip.locations || [],
+            diagnostics: data.trip.diagnostics || [],
+            fallback: Boolean(data.trip.summary.fallback),
+            repairedSegments: Boolean(data.trip.summary.repaired_segments),
+            endpointThresholdMeters: data.trip.summary.endpoint_threshold_meters || null,
+            endpointChecks: data.trip.summary.endpoint_checks || [],
+            endpointReconciled: Boolean(data.trip.summary.endpoint_reconciled)
         };
         
         AppState.route = routeData;
@@ -49,19 +65,30 @@ async function calculateRoute() {
         // Process directions
         AppState.directions = processDirections(data.trip.legs[0].maneuvers);
         
-        // Calculate statistics
-        calculateStatistics();
+        await calculateStatistics();
+        await updateElevationChart();
         
         // Update display
         displayRoute(routeData);
+        updateOsmGraphLayer();
         updateUI();
         
         saveToLocalStorage();
         
     } catch (error) {
         console.error('Routing error:', error);
-        // Fallback to straight line if routing fails
-        calculateStraightLineRoute();
+        AppState.routingError = error.message || 'Routing non disponibile';
+        AppState.route = null;
+        AppState.directions = [];
+        clearRoute();
+        updateRoutingDebugLayer(null);
+        updateOsmGraphLayer();
+        calculateStatistics().then(() => {
+            updateElevationChart();
+            updateUI();
+            saveToLocalStorage();
+        });
+        updateUI();
     }
 }
 
@@ -76,20 +103,29 @@ function calculateStraightLineRoute() {
             coordinates[i + 1][1], coordinates[i + 1][0]
         );
     }
+
+    const totalDistanceMeters = totalDistance * 1000;
+    const totalTimeSeconds = Math.round((totalDistance / 5) * 3600);
     
     AppState.route = {
         coordinates: coordinates,
-        distance: totalDistance,
-        time: totalDistance * 1000, // Rough estimate
+        distance: totalDistanceMeters,
+        time: totalTimeSeconds,
         elevation: 0
     };
     
     AppState.directions = [{
         instruction: 'Routing non disponibile. Linea d\'aria.',
-        distance: totalDistance
+        distance: totalDistanceMeters
     }];
     
     displayRoute(AppState.route);
+    updateOsmGraphLayer();
+    calculateStatistics().then(() => {
+        updateElevationChart();
+        updateUI();
+        saveToLocalStorage();
+    });
     updateUI();
 }
 
@@ -118,12 +154,14 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 // Get elevation data for route
 async function getElevationData(coordinates) {
     try {
-        // This would call a local elevation service
-        // For now, return mock data
         return coordinates.map(coord => ({
             lat: coord[1],
             lon: coord[0],
-            elevation: 1000 + Math.random() * 500 // Mock elevation
+            elevation: Math.round(
+                900 +
+                (Math.sin(coord[1] * 3.1) * 140) +
+                (Math.cos(coord[0] * 2.7) * 120)
+            )
         }));
     } catch (error) {
         console.error('Elevation error:', error);

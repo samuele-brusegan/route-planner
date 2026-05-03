@@ -98,7 +98,7 @@ async function downloadRegionTiles(bounds, minZoom, maxZoom, mapType = 'full', s
             const response = await fetch(url);
             if (response.ok) {
                 const blob = await response.blob();
-                await saveTile(url + `_${mapType}`, blob);
+                await saveTile(url, blob);
             }
         } catch (error) {
             console.error(`Failed to download tile ${tile.z}/${tile.x}/${tile.y}:`, error);
@@ -110,7 +110,7 @@ async function downloadRegionTiles(bounds, minZoom, maxZoom, mapType = 'full', s
         }
     }
     
-    return { downloaded, total };
+    return { downloaded, total, totalTiles: total };
 }
 
 // Custom tile source that uses offline tiles when available
@@ -139,6 +139,32 @@ class OfflineTileSource extends ol.source.XYZ {
             super.tileLoadFunction(tile, src);
         });
     }
+}
+
+// Count stored tiles in IndexedDB
+async function getStorageUsage() {
+    const db = await initOfflineMapsDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.count();
+
+        request.onsuccess = () => resolve(request.result || 0);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Clear all stored offline tiles
+async function clearOfflineTiles() {
+    const db = await initOfflineMapsDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.clear();
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
 }
 
 // Predefined regions

@@ -278,7 +278,7 @@ function handleDownload(e) {
         document.getElementById('download-progress-bar').value = progress;
         document.getElementById('download-progress-text').textContent = `${downloaded} / ${total} tile`;
     }).then(result => {
-        alert(`Download completato! ${result.downloaded} tile scaricate`);
+        alert(`Download completato! ${result.downloaded} tile scaricate su ${result.totalTiles}`);
         document.getElementById('download-progress-section').style.display = 'none';
         document.getElementById('map-types-section').style.display = 'block';
         loadDownloadedMaps();

@@ -96,7 +96,9 @@ function calculateDayStats(startIndex, endIndex, elevationData) {
     }
     
     // Simplified elevation calculation (proportional to total)
-    const proportion = segmentDistance / AppState.stats.totalDistance;
+    const proportion = AppState.stats.totalDistance > 0
+        ? segmentDistance / AppState.stats.totalDistance
+        : 0;
     const ascent = Math.round(AppState.stats.totalAscent * proportion);
     const descent = Math.round(AppState.stats.totalDescent * proportion);
     

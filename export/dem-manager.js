@@ -72,6 +72,11 @@ async function downloadDEMTile(tileName, demDir) {
         ];
         
         const process = spawn(curlCmd[0], curlCmd.slice(1));
+
+        process.on('error', () => {
+            console.warn(`Failed to start DEM download for ${tileName}`);
+            resolve();
+        });
         
         process.on('close', (code) => {
             if (code === 0) {
@@ -99,6 +104,11 @@ async function buildElevationTiles(demDir) {
         ];
         
         const process = spawn(dockerCmd[0], dockerCmd.slice(1));
+
+        process.on('error', () => {
+            console.warn('Failed to start elevation tile build');
+            resolve(elevationDir);
+        });
         
         process.stdout.on('data', (data) => {
             console.log(`Elevation build: ${data}`);

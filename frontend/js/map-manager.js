@@ -1,11 +1,13 @@
 // Map Manager - Region download and offline mode management
-const EXPORT_API_URL = 'http://localhost:3001';
+const EXPORT_API_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
 let availableRegions = [];
 let downloadStatuses = {};
 let offlineMode = false;
+let mapModeChannel = null;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
+    loadOfflineModePreference();
     loadRegions();
     setupEventListeners();
     startStatusPolling();
@@ -34,7 +36,7 @@ function setupEventListeners() {
 // Load regions from API
 async function loadRegions() {
     try {
-        const response = await fetch(`${EXPORT_API_URL}/regions?area=italy`);
+        const response = await fetch(`${EXPORT_API_URL}/regions`);
         const data = await response.json();
         availableRegions = data.regions;
         renderRegions(availableRegions);
@@ -222,10 +224,24 @@ async function handleDeleteClick(e) {
     if (!confirm(`Sei sicuro di voler eliminare ${regionId}?`)) {
         return;
     }
-    
-    // For now, this is a placeholder
-    // In production, you would call an API to delete the region
-    console.log(`Delete region: ${regionId}`);
+
+    try {
+        const response = await fetch(`${EXPORT_API_URL}/regions/${regionId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            throw new Error('Errore durante la cancellazione');
+        }
+
+        delete downloadStatuses[regionId];
+        renderDownloadStatus();
+        await loadDownloadedRegions();
+        await loadRegions();
+    } catch (error) {
+        console.error('Delete region error:', error);
+        alert('Errore durante la cancellazione della regione');
+    }
 }
 
 // Save offline mode preference
@@ -244,7 +260,15 @@ function loadOfflineModePreference() {
 
 // Update map source based on offline mode
 function updateMapSource() {
-    // This will be called from the main app
-    // For now, just save the preference
     console.log('Offline mode:', offlineMode);
+
+    if ('BroadcastChannel' in window) {
+        if (!mapModeChannel) {
+            mapModeChannel = new BroadcastChannel('route-planner-map-mode');
+        }
+        mapModeChannel.postMessage({
+            type: 'map-mode',
+            mode: offlineMode ? 'offline' : 'online'
+        });
+    }
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-planner-v1';
+const CACHE_NAME = 'route-planner-v7';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -29,10 +29,35 @@ self.addEventListener('install', (event) => {
                 return cache.addAll(urlsToCache);
             })
     );
+    self.skipWaiting();
 });
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+    const requestUrl = new URL(event.request.url);
+    const isAppAsset = requestUrl.origin === self.location.origin &&
+        (
+            requestUrl.pathname.endsWith('.js') ||
+            requestUrl.pathname.endsWith('.css') ||
+            requestUrl.pathname.endsWith('.html') ||
+            requestUrl.pathname === '/'
+        );
+
+    if (isAppAsset) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                    return response;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
@@ -77,6 +102,6 @@ self.addEventListener('activate', (event) => {
                     }
                 })
             );
-        })
+        }).then(() => self.clients.claim())
     );
 });

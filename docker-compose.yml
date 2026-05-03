@@ -13,6 +13,38 @@ services:
     build: ./routing
     ports:
       - "8002:8002"
+    environment:
+      - VALHALLA_API_URL=${VALHALLA_API_URL:-http://valhalla:8002/route}
+      - VALHALLA_STATUS_URL=${VALHALLA_STATUS_URL:-http://valhalla:8002/status}
+      - VALHALLA_TILE_DIR=${VALHALLA_TILE_DIR:-/data/valhalla_tiles}
+      - VALHALLA_TILE_EXTRACT=${VALHALLA_TILE_EXTRACT:-/data/valhalla_tiles.tar}
+      - VALHALLA_CONFIG_PATH=${VALHALLA_CONFIG_PATH:-/data/valhalla.generated.json}
+      - GRAPHHOPPER_API_URL=${GRAPHHOPPER_API_URL:-https://graphhopper.com/api/1/route}
+      - GRAPHHOPPER_API_KEY=${GRAPHHOPPER_API_KEY:-}
+      - SNAP_RADIUS_METERS=${SNAP_RADIUS_METERS:-50}
+    volumes:
+      - ./data:/data
+    networks:
+      - route-planner-network
+    depends_on:
+      - valhalla
+    shm_size: '2gb'
+
+  valhalla:
+    image: ghcr.io/valhalla/valhalla:latest
+    ports:
+      - "8008:8002"
+    command:
+      - /bin/sh
+      - -lc
+      - >
+        valhalla_build_config
+        --mjolnir-tile-dir /data/valhalla_tiles
+        --mjolnir-tile-extract /data/valhalla_tiles.tar
+        --mjolnir-timezone /data/timezones.sqlite
+        --mjolnir-admin /data/admins.sqlite
+        > /data/valhalla.generated.json
+        && exec valhalla_service /data/valhalla.generated.json 1
     volumes:
       - ./data:/data
     networks:
@@ -30,6 +62,7 @@ services:
       - route-planner-network
     depends_on:
       - routing
+      - valhalla
 
 networks:
   route-planner-network:

@@ -37,14 +37,25 @@
 
     <!-- View Dropdown -->
     <div id="dropdown-view" class="dropdown hidden">
-        <div class="dropdown-item" id="toggle-left-panel">Pannello Sinistro</div>
-        <div class="dropdown-item" id="toggle-right-panel">Pannello Destro</div>
-        <div class="dropdown-item" id="toggle-bottom-panel">Pannello Inferiore</div>
+        <div class="dropdown-item" id="toggle-left-panel">Punti percorso</div>
+        <div class="dropdown-item" id="toggle-right-panel">Tipi segnaposto</div>
+        <div class="dropdown-item" id="toggle-bottom-panel">Statistiche percorso</div>
+        <div class="dropdown-item" id="toggle-top-panel">Profilo altimetrico</div>
+        <div class="dropdown-item" id="toggle-directions-panel">Indicazioni passo-passo</div>
+        <div class="dropdown-item" id="toggle-routing-debug">Strade usate dal routing</div>
+        <div class="dropdown-item" id="toggle-osm-graph">Grafo OSM adiacente</div>
         <div class="dropdown-item" id="offline-maps">Mappe Offline (Tile)</div>
     </div>
 
     <!-- Maps Dropdown -->
     <div id="dropdown-maps" class="dropdown hidden">
+        <div class="dropdown-item map-layer-option" data-map-layer="opentopo">OpenTopoMap</div>
+        <div class="dropdown-item map-layer-option" data-map-layer="osm">OpenStreetMap</div>
+        <div class="dropdown-item map-layer-option" data-map-layer="cyclosm">CyclOSM</div>
+        <div class="dropdown-item map-layer-option" data-map-layer="tracestrack">Tracestrack Topo</div>
+        <div class="dropdown-item" id="set-tracestrack-key">Chiave Tracestrack</div>
+        <div class="dropdown-item" id="toggle-trail-overlay">Sentieri Waymarked</div>
+        <div class="dropdown-item" id="toggle-contour-overlay">Isoipse / Isobate</div>
         <div class="dropdown-item" id="map-manager">Gestione Mappe Regionali</div>
     </div>
 
@@ -58,6 +69,26 @@
             <button class="close-btn" data-panel="left-panel">×</button>
         </div>
         <div class="panel-content">
+            <div class="route-style-control">
+                <label for="route-color-input">Colore percorso</label>
+                <input type="color" id="route-color-input" value="#4a90a4">
+            </div>
+            <div class="route-style-control stacked">
+                <label for="routing-engine-select">Motore routing</label>
+                <select id="routing-engine-select">
+                    <option value="valhalla">Valhalla</option>
+                    <option value="osrm">OSRM</option>
+                    <option value="graphhopper">GraphHopper</option>
+                </select>
+            </div>
+            <div class="route-style-control stacked">
+                <label for="routing-profile-select">Modalità</label>
+                <select id="routing-profile-select">
+                    <option value="walking">A piedi</option>
+                    <option value="cycling">Bici</option>
+                </select>
+            </div>
+            <div id="routing-diagnostics" class="routing-diagnostics hidden"></div>
             <div id="markers-list"></div>
             <button id="add-marker-btn" class="btn primary">Aggiungi Punto</button>
         </div>

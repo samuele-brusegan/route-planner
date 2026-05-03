@@ -1,5 +1,5 @@
 // Export functionality
-const EXPORT_API_URL = 'http://export:3000';
+const EXPORT_API_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
 
 // Export GPX
 function exportGPX(splitByDays = false) {
@@ -111,10 +111,25 @@ async function exportMapPNG() {
     try {
         const dataUrl = await exportMapAsImage('png');
         if (dataUrl) {
+            const response = await fetch(`${EXPORT_API_URL}/export/map/png`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ imageDataUrl: dataUrl })
+            });
+
+            if (!response.ok) {
+                throw new Error('Errore nell\'esportazione PNG');
+            }
+
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = dataUrl;
+            a.href = url;
             a.download = `mappa-${new Date().toISOString().split('T')[0]}.png`;
             a.click();
+            URL.revokeObjectURL(url);
         } else {
             alert('Impossibile esportare la mappa. Assicurati che la mappa sia visibile.');
         }
@@ -126,7 +141,39 @@ async function exportMapPNG() {
 
 // Export map as PDF (not available without Puppeteer)
 async function exportMapPDF() {
-    alert('Export PDF mappa non disponibile in questa configurazione.\nUsa l\'export PNG o configura Puppeteer per il supporto PDF.');
+    try {
+        const dataUrl = await exportMapAsImage('png');
+        if (!dataUrl) {
+            alert('Impossibile esportare la mappa. Assicurati che la mappa sia visibile.');
+            return;
+        }
+
+        const response = await fetch(`${EXPORT_API_URL}/export/map/pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                imageDataUrl: dataUrl,
+                title: 'Route Planner - Mappa'
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Errore nell\'esportazione PDF');
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mappa-${new Date().toISOString().split('T')[0]}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Export error:', error);
+        alert('Errore nell\'esportazione PDF mappa');
+    }
 }
 
 // Export directions as PDF

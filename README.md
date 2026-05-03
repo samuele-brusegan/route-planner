@@ -1,12 +1,12 @@
 # Route Planner
 
-Applicazione web per la pianificazione di percorsi escursionistici con mappe OSM Topo, routing pedonale locale e funzionalità di export complete.
+Applicazione web per la pianificazione di percorsi escursionistici con mappe OSM Topo, routing locale con Valhalla e funzionalità di export complete.
 
 ## Caratteristiche
 
 - **Mappa OSM Topo**: Visualizzazione di mappe topografiche OpenStreetMap
 - **Segnaposto personalizzabili**: Creazione e gestione di tipi di punti (default: punto notte, rifornimento, punto strada)
-- **Routing pedonale**: Calcolo percorsi seguendo sentieri e strade (non in linea d'aria)
+- **Routing pedonale e bici**: Calcolo percorsi seguendo sentieri e strade, con motore locale Valhalla come primo motore e fallback espliciti solo quando selezionati
 - **Statistiche complete**: Lunghezza, dislivello positivo/negativo, tempo stimato
 - **Statistiche per giorno**: Divisione automatica per "punti notte"
 - **Grafico altimetrico**: Profilo elevazione con separatori per giorni
@@ -20,11 +20,12 @@ Applicazione web per la pianificazione di percorsi escursionistici con mappe OSM
 
 ## Architettura
 
-L'applicazione utilizza 3 container Docker:
+L'applicazione utilizza 4 container Docker:
 
 1. **Frontend**: Vanilla JS + OpenLayers + nginx
-2. **Routing Engine**: Valhalla (motore di routing locale)
-3. **Export Service**: Node.js + Puppeteer (generazione PDF/PNG)
+2. **Routing API**: Proxy Node.js verso Valhalla locale, OSRM o GraphHopper
+3. **Valhalla**: Motore di routing locale con tile OSM montati da `./data`
+4. **Export Service**: Node.js + Puppeteer (generazione PDF/PNG)
 
 ## Prerequisiti
 
@@ -49,7 +50,7 @@ L'applicazione utilizza 3 container Docker:
 
 ## Configurazione Routing (Opzionale)
 
-Per abilitare il routing pedonale locale con Valhalla:
+Per abilitare il routing locale con Valhalla:
 
 ### Opzione 1: Download Automatico (Consigliato)
 
@@ -80,18 +81,16 @@ Per abilitare il routing pedonale locale con Valhalla:
 
 2. **Costruisci i tile di routing**
    ```bash
-   docker-compose exec routing bash
-   cd /data
-   valhalla_build_config -mj italy-latest.osm.pbf --co --mjolnir.tile-dir=/data/valhalla_tiles --co --mjolnir.timezone=/data/timezones.sqlite --co --mjolnir.tile-extract=/data/valhalla_tiles.tar
-   exit
+   docker compose exec valhalla valhalla_build_tiles -c /data/valhalla.generated.json /data/italy-latest.osm.pbf
+   docker compose exec valhalla valhalla_build_extract -c /data/valhalla.generated.json -v
    ```
 
-3. **Riavvia il container routing**
+3. **Riavvia i container di routing**
    ```bash
-   docker-compose restart routing
+   docker compose restart valhalla routing
    ```
 
-Nota: Senza questa configurazione, il routing userà linee d'aria come fallback.
+Nota: senza tile OSM locali, il routing Valhalla fallisce in modo esplicito con errore 503. Il servizio `valhalla` nel `docker-compose.yml` ascolta sulla rete interna e viene usato di default dal proxy `routing`.
 
 ## API Endpoints
 
