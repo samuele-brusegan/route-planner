@@ -22,7 +22,10 @@ AppState.routingEngine = 'valhalla';
 AppState.routingProfile = 'walking';
 AppState.showRoutingDebug = false;
 AppState.showOsmGraph = false;
+AppState.showOsmInspector = false;
 AppState.routingError = null;
+AppState.pendingMarkerInsertIndex = null;
+AppState.selectedOsmGraphId = null;
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -43,9 +46,55 @@ function saveToLocalStorage() {
         routingProfile: AppState.routingProfile,
         showRoutingDebug: AppState.showRoutingDebug,
         showOsmGraph: AppState.showOsmGraph,
+        showOsmInspector: AppState.showOsmInspector,
         routingError: AppState.routingError
     };
     localStorage.setItem('routePlannerData', JSON.stringify(data));
+}
+
+function savePanelVisibilityToLocalStorage(panelVisibility) {
+    localStorage.setItem('routePlannerPanelVisibility', JSON.stringify(panelVisibility || {}));
+}
+
+function loadPanelVisibilityFromLocalStorage() {
+    try {
+        return JSON.parse(localStorage.getItem('routePlannerPanelVisibility') || '{}') || {};
+    } catch (error) {
+        return {};
+    }
+}
+
+function showToast(message, type = 'info', durationMs = 4500) {
+    const container = getToastContainer();
+    const toast = document.createElement('div');
+    const safeType = ['info', 'warn', 'error', 'success'].includes(type) ? type : 'info';
+
+    toast.className = `toast toast-${safeType}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+        toast.classList.add('visible');
+    });
+
+    const timer = setTimeout(() => {
+        toast.classList.remove('visible');
+        window.setTimeout(() => toast.remove(), 180);
+    }, durationMs);
+
+    return toast;
+}
+
+function getToastContainer() {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.setAttribute('aria-live', 'polite');
+        container.setAttribute('aria-atomic', 'true');
+        document.body.appendChild(container);
+    }
+    return container;
 }
 
 // Load from localStorage
@@ -62,8 +111,17 @@ async function loadFromLocalStorage() {
         AppState.routingProfile = parsed.routingProfile || AppState.routingProfile;
         AppState.showRoutingDebug = parsed.showRoutingDebug || false;
         AppState.showOsmGraph = parsed.showOsmGraph || false;
+        AppState.showOsmInspector = parsed.showOsmInspector || false;
         AppState.routingError = parsed.routingError || null;
         applyRouteStyle();
+
+        const savedPanelVisibility = loadPanelVisibilityFromLocalStorage();
+        if (Object.prototype.hasOwnProperty.call(savedPanelVisibility, 'osm-inspector-panel')) {
+            AppState.showOsmInspector = Boolean(savedPanelVisibility['osm-inspector-panel']);
+            syncOsmInspectorToggleLabel();
+        } else {
+            setPanelVisibility('osm-inspector-panel', AppState.showOsmInspector, false);
+        }
         
         // Restore markers on map
         AppState.markers.forEach(marker => {
@@ -90,6 +148,8 @@ function clearAll() {
         AppState.route = null;
         AppState.directions = [];
         AppState.routingError = null;
+        AppState.pendingMarkerInsertIndex = null;
+        AppState.selectedOsmGraphId = null;
         AppState.stats = {
             totalDistance: 0,
             totalAscent: 0,
@@ -117,6 +177,7 @@ function exportJSON() {
         routingProfile: AppState.routingProfile,
         showRoutingDebug: AppState.showRoutingDebug,
         showOsmGraph: AppState.showOsmGraph,
+        showOsmInspector: AppState.showOsmInspector,
         routingError: AppState.routingError,
         exportDate: new Date().toISOString()
     };
@@ -156,8 +217,10 @@ function importJSON(file) {
             AppState.routingProfile = data.routingProfile || AppState.routingProfile;
             AppState.showRoutingDebug = data.showRoutingDebug || false;
             AppState.showOsmGraph = data.showOsmGraph || false;
+            AppState.showOsmInspector = data.showOsmInspector || false;
             AppState.routingError = data.routingError || null;
             applyRouteStyle();
+            setPanelVisibility('osm-inspector-panel', AppState.showOsmInspector, false);
             
             // Restore markers on map
             AppState.markers.forEach(marker => {
@@ -193,6 +256,9 @@ function updateUI() {
     updateRouteStyleControls();
     updateRoutingControls();
     updateRoutingDiagnostics();
+    if (AppState.selectedOsmGraphId || AppState.showOsmInspector) {
+        updateOsmInspectorPanel(AppState.selectedOsmGraphId);
+    }
 }
 
 // Calculate time estimate using Naismith's formula

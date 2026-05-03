@@ -61,6 +61,13 @@ async function calculateRoute() {
         };
         
         AppState.route = routeData;
+
+        if (routeData.fallback) {
+            const fallbackMessage = routeData.repairedSegments
+                ? 'Routing in fallback: alcuni segmenti sono stati ricalcolati dal backend.'
+                : 'Routing in fallback: il motore ha usato una rotta alternativa.';
+            showToast(fallbackMessage, 'warn');
+        }
         
         // Process directions
         AppState.directions = processDirections(data.trip.legs[0].maneuvers);
@@ -95,6 +102,7 @@ async function calculateRoute() {
 // Fallback: calculate straight line route
 function calculateStraightLineRoute() {
     const coordinates = AppState.markers.map(m => [m.lon, m.lat]);
+    showToast('Routing in fallback: linea d\'aria usata come ripiego.', 'warn');
     
     let totalDistance = 0;
     for (let i = 0; i < coordinates.length - 1; i++) {

@@ -191,7 +191,11 @@ function setTracestrackKey() {
 }
 
 function toggleTrailOverlay() {
-    trailsOverlayVisible = !trailsOverlayVisible;
+    return setTrailOverlayVisible(!trailsOverlayVisible);
+}
+
+function setTrailOverlayVisible(visible) {
+    trailsOverlayVisible = Boolean(visible);
     localStorage.setItem('trailsOverlay', trailsOverlayVisible ? 'true' : 'false');
     trailOverlayLayer.setVisible(trailsOverlayVisible);
     return trailsOverlayVisible;
@@ -202,7 +206,11 @@ function getTrailOverlayVisible() {
 }
 
 function toggleContourOverlay() {
-    contoursOverlayVisible = !contoursOverlayVisible;
+    return setContourOverlayVisible(!contoursOverlayVisible);
+}
+
+function setContourOverlayVisible(visible) {
+    contoursOverlayVisible = Boolean(visible);
     localStorage.setItem('contoursOverlay', contoursOverlayVisible ? 'true' : 'false');
     contourOverlayLayer.setVisible(contoursOverlayVisible);
     return contoursOverlayVisible;
@@ -252,6 +260,10 @@ function setOsmGraphVisible(visible) {
     if (osmGraphLayer) {
         osmGraphLayer.setVisible(AppState.showOsmGraph);
     }
+    if (!AppState.showOsmGraph) {
+        setOsmInspectorVisible(false);
+        AppState.selectedOsmGraphId = null;
+    }
     updateOsmGraphLayer();
     saveToLocalStorage();
 }
@@ -266,6 +278,8 @@ async function updateOsmGraphLayer() {
 
     const source = osmGraphLayer.getSource();
     source.clear();
+    AppState.selectedOsmGraphId = null;
+    updateOsmInspectorPanel(null);
 
     if (!AppState.showOsmGraph || AppState.markers.length === 0) return;
 
@@ -294,15 +308,40 @@ async function updateOsmGraphLayer() {
         (graph.features || []).forEach(featureData => {
             if (!Array.isArray(featureData.coordinates) || featureData.coordinates.length < 2) return;
 
+            const featureId = featureData.id !== undefined && featureData.id !== null
+                ? String(featureData.id)
+                : `graph-${source.getFeatures().length}`;
+
             const feature = new ol.Feature({
                 geometry: new ol.geom.LineString(featureData.coordinates.map(coord => ol.proj.fromLonLat(coord))),
-                graphTags: featureData.tags || {}
+                graphTags: featureData.tags || {},
+                graphId: featureId
             });
+            feature.setId(featureId);
             source.addFeature(feature);
         });
     } catch (error) {
         console.error('OSM graph error:', error);
     }
+}
+
+function getOsmGraphFeatureAtPixel(pixel) {
+    if (!osmGraphLayer || !pixel) return null;
+
+    let foundFeature = null;
+    map.forEachFeatureAtPixel(
+        pixel,
+        (feature, layer) => {
+            if (layer === osmGraphLayer && feature.get('graphTags')) {
+                foundFeature = feature;
+                return true;
+            }
+            return false;
+        },
+        { hitTolerance: 8 }
+    );
+
+    return foundFeature;
 }
 
 function sampleCoordinates(coordinates, maxPoints) {
@@ -410,6 +449,7 @@ function getOsmGraphStyle(feature) {
     const tags = feature.get('graphTags') || {};
     const highway = tags.highway || '';
     const routeRef = tags.ref || tags.name || '';
+    const isSelected = String(feature.getId?.() || feature.get('graphId') || '') === String(AppState.selectedOsmGraphId || '');
 
     let color = '#64748b';
     let width = 2;
@@ -430,6 +470,12 @@ function getOsmGraphStyle(feature) {
         width = 2;
     }
 
+    if (isSelected) {
+        color = '#f59e0b';
+        width = Math.max(width + 2, 4);
+        lineDash = undefined;
+    }
+
     return new ol.style.Style({
         stroke: new ol.style.Stroke({
             color,
@@ -444,6 +490,223 @@ function getOsmGraphStyle(feature) {
             placement: 'line'
         }) : undefined
     });
+}
+
+function openOsmInspector(feature) {
+    if (!feature) return;
+
+    AppState.selectedOsmGraphId = String(feature.getId?.() || feature.get('graphId') || '');
+    setOsmInspectorVisible(true);
+    updateOsmInspectorPanel(feature);
+    if (osmGraphLayer) {
+        osmGraphLayer.getSource().changed();
+    }
+}
+
+function updateOsmInspectorPanel(featureOrId) {
+    const panel = document.getElementById('osm-inspector-panel');
+    const emptyState = document.getElementById('osm-inspector-empty');
+    const content = document.getElementById('osm-inspector-content');
+    if (!panel || !emptyState || !content) return;
+
+    const feature = resolveOsmGraphFeature(featureOrId);
+    if (!feature) {
+        emptyState.classList.remove('hidden');
+        content.classList.add('hidden');
+        content.innerHTML = '';
+        return;
+    }
+
+    const tags = feature.get('graphTags') || {};
+    const analysis = analyzeOsmGraphFeature(tags, AppState.routingProfile);
+    const geometry = feature.getGeometry();
+    const lengthMeters = geometry && typeof geometry.getLength === 'function'
+        ? Math.round(geometry.getLength())
+        : null;
+    const importantTags = buildOsmInspectorTagRows(tags);
+
+    emptyState.classList.add('hidden');
+    content.classList.remove('hidden');
+    content.innerHTML = `
+        <div class="osm-inspector-header">
+            <div class="osm-inspector-title">
+                ${escapeHtml(tags.name || tags.ref || 'Way senza nome')}
+            </div>
+            <div class="osm-inspector-subtitle">
+                ${escapeHtml(tags.highway || 'highway sconosciuta')}
+                ${lengthMeters !== null ? ` · ${lengthMeters} m` : ''}
+            </div>
+        </div>
+        <div class="osm-inspector-section">
+            <h4>Perché può non piacere al router</h4>
+            ${analysis.reasons.length > 0
+                ? `<ul>${analysis.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>`
+                : '<p>Nessun red flag evidente. Il router può comunque preferire un altro ramo per costo, connettività o candidate ranking.</p>'}
+        </div>
+        <div class="osm-inspector-section">
+            <h4>Segnali utili</h4>
+            <div class="osm-inspector-badges">
+                ${analysis.badges.map(badge => `<span class="osm-badge">${escapeHtml(badge)}</span>`).join('')}
+            </div>
+        </div>
+        <div class="osm-inspector-section">
+            <h4>Tag principali</h4>
+            <table class="osm-inspector-table">
+                <tbody>
+                    ${importantTags.map(row => `
+                        <tr>
+                            <th>${escapeHtml(row.key)}</th>
+                            <td>${escapeHtml(row.value)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div class="osm-inspector-section">
+            <h4>Raw tags</h4>
+            <pre class="osm-inspector-raw">${escapeHtml(JSON.stringify(tags, null, 2))}</pre>
+        </div>
+    `;
+}
+
+function resolveOsmGraphFeature(featureOrId) {
+    if (!osmGraphLayer) return null;
+
+    if (featureOrId && typeof featureOrId.get === 'function') {
+        return featureOrId;
+    }
+
+    const targetId = featureOrId !== undefined && featureOrId !== null
+        ? String(featureOrId)
+        : String(AppState.selectedOsmGraphId || '');
+
+    if (!targetId) return null;
+
+    return osmGraphLayer.getSource().getFeatures().find(feature =>
+        String(feature.getId?.() || feature.get('graphId') || '') === targetId
+    ) || null;
+}
+
+function analyzeOsmGraphFeature(tags, profile) {
+    const reasons = [];
+    const badges = [];
+    const highway = normalizeTagValue(tags.highway);
+    const access = normalizeTagValue(tags.access);
+    const foot = normalizeTagValue(tags.foot);
+    const bicycle = normalizeTagValue(tags.bicycle);
+    const motorVehicle = normalizeTagValue(tags.motor_vehicle);
+    const surface = normalizeTagValue(tags.surface);
+    const smoothness = normalizeTagValue(tags.smoothness);
+    const tracktype = normalizeTagValue(tags.tracktype);
+    const oneway = normalizeTagValue(tags.oneway);
+    const incline = normalizeTagValue(tags.incline);
+
+    if (highway) badges.push(`highway=${highway}`);
+    if (access) badges.push(`access=${access}`);
+    if (surface) badges.push(`surface=${surface}`);
+    if (smoothness) badges.push(`smoothness=${smoothness}`);
+    if (tracktype) badges.push(`tracktype=${tracktype}`);
+
+    if (matchesAny(access, ['no', 'private', 'agricultural', 'forestry'])) {
+        reasons.push(`Accesso limitato: access=${access}.`);
+    }
+
+    if (profile === 'walking') {
+        if (matchesAny(foot, ['no'])) {
+            reasons.push(`Foot proibito o penalizzato: foot=${foot}.`);
+        }
+
+        if (matchesAny(highway, ['motorway', 'trunk'])) {
+            reasons.push(`Tipo strada poco adatto ai pedoni: highway=${highway}.`);
+        }
+
+        if (highway === 'steps') {
+            reasons.push('Tratto con scale: i pedoni lo possono usare, ma può risultare penalizzante o fragile nello snap.');
+        }
+    }
+
+    if (profile === 'cycling') {
+        if (matchesAny(bicycle, ['no'])) {
+            reasons.push(`Bici vietata o sfavorita: bicycle=${bicycle}.`);
+        }
+
+        if (highway === 'steps') {
+            reasons.push('Scale: quasi sempre pessime per la bici.');
+        }
+
+        if (matchesAny(highway, ['footway', 'pedestrian']) && bicycle !== 'designated') {
+            reasons.push(`Tipologia pedonale non ideale per la bici: highway=${highway}.`);
+        }
+
+        if (oneway === 'yes') {
+            reasons.push('Tratto one-way: può essere evitato o penalizzato per la bici.');
+        }
+    }
+
+    if (matchesAny(surface, ['ground', 'dirt', 'mud', 'grass', 'sand', 'gravel', 'unpaved'])) {
+        reasons.push(`Superficie poco buona: surface=${surface}.`);
+    }
+
+    if (matchesAny(smoothness, ['bad', 'very_bad', 'horrible', 'very_horrible', 'impassable'])) {
+        reasons.push(`Smoothness sfavorevole: smoothness=${smoothness}.`);
+    }
+
+    if (matchesAny(tracktype, ['grade4', 'grade5'])) {
+        reasons.push(`Track molto povero: tracktype=${tracktype}.`);
+    }
+
+    if (matchesAny(motorVehicle, ['no', 'private']) && profile === 'cycling') {
+        reasons.push(`Restrizione veicolare che spesso coincide con accesso complicato: motor_vehicle=${motorVehicle}.`);
+    }
+
+    if (incline && /steep|very_steep|up|down/.test(incline)) {
+        reasons.push(`Pendenza dichiarata: incline=${incline}.`);
+    }
+
+    if (!tags.name && !tags.ref) {
+        badges.push('way anonima');
+    }
+
+    if (!reasons.length) {
+        reasons.push('Nessun tag di esclusione evidente; il router può comunque preferire un altro ramo per minor costo o migliore connettività.');
+    }
+
+    return { reasons, badges };
+}
+
+function buildOsmInspectorTagRows(tags) {
+    const keys = ['highway', 'name', 'ref', 'access', 'foot', 'bicycle', 'surface', 'smoothness', 'tracktype', 'oneway', 'motor_vehicle', 'layer'];
+    const rows = [];
+
+    keys.forEach(key => {
+        if (tags[key] !== undefined && tags[key] !== null && String(tags[key]).trim() !== '') {
+            rows.push({ key, value: String(tags[key]) });
+        }
+    });
+
+    Object.keys(tags)
+        .filter(key => !keys.includes(key))
+        .slice(0, 12)
+        .forEach(key => rows.push({ key, value: String(tags[key]) }));
+
+    return rows;
+}
+
+function normalizeTagValue(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function matchesAny(value, options) {
+    return options.includes(normalizeTagValue(value));
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 // Cache default world map (low zoom levels)
@@ -490,14 +753,30 @@ async function cacheDefaultWorldMap() {
 
 // Handle map click to add marker
 function handleMapClick(event) {
+    const inspectedFeature = getOsmGraphFeatureAtPixel(event.pixel);
+    if (inspectedFeature) {
+        openOsmInspector(inspectedFeature);
+        return;
+    }
+
     const coords = ol.proj.toLonLat(event.coordinate);
     
     // Show modal to select marker type
-    showAddMarkerModal(coords);
+    showAddMarkerModal(
+        coords,
+        AppState.pendingMarkerInsertIndex === null || AppState.pendingMarkerInsertIndex === undefined
+            ? undefined
+            : AppState.pendingMarkerInsertIndex
+    );
 }
 
 // Show modal to add marker
-function showAddMarkerModal(coords) {
+function showAddMarkerModal(coords, insertIndex = AppState.markers.length) {
+    const targetIndex = insertIndex === null || insertIndex === undefined
+        ? AppState.markers.length
+        : (Number.isInteger(Number(insertIndex))
+            ? Math.max(0, Math.min(AppState.markers.length, Number(insertIndex)))
+            : AppState.markers.length);
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
@@ -519,15 +798,15 @@ function showAddMarkerModal(coords) {
 
     // Handle cancel
     document.getElementById('cancel-marker').addEventListener('click', () => {
+        AppState.pendingMarkerInsertIndex = null;
         modal.remove();
     });
 
     // Handle confirm
     document.getElementById('confirm-marker').addEventListener('click', () => {
         const typeId = document.getElementById('marker-type-select').value;
-        const name = document.getElementById('marker-name-input').value || `Punto ${AppState.markers.length + 1}`;
-        
-        const markerType = AppState.markerTypes.find(t => t.id === typeId);
+        const defaultNameIndex = targetIndex;
+        const name = document.getElementById('marker-name-input').value || `Punto ${defaultNameIndex + 1}`;
         
         const marker = {
             id: Date.now().toString(),
@@ -535,10 +814,11 @@ function showAddMarkerModal(coords) {
             type: typeId,
             lat: coords[1],
             lon: coords[0],
-            order: AppState.markers.length
+            order: targetIndex
         };
-        
-        AppState.markers.push(marker);
+
+        insertMarkerAtIndex(marker, targetIndex);
+        AppState.pendingMarkerInsertIndex = null;
         addMarkerToMap(marker);
         saveToLocalStorage();
         updateUI();
@@ -549,6 +829,24 @@ function showAddMarkerModal(coords) {
         }
         
         modal.remove();
+    });
+}
+
+function insertMarkerAtIndex(marker, index) {
+    const targetIndex = Math.max(0, Math.min(AppState.markers.length, index));
+    AppState.markers.splice(targetIndex, 0, marker);
+    AppState.markers.forEach((m, i) => {
+        m.order = i;
+    });
+}
+
+function moveMarker(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return;
+    const marker = AppState.markers.splice(fromIndex, 1)[0];
+    const adjustedIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    AppState.markers.splice(Math.max(0, adjustedIndex), 0, marker);
+    AppState.markers.forEach((m, i) => {
+        m.order = i;
     });
 }
 

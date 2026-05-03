@@ -7,7 +7,8 @@ const VALHALLA_API_URL = process.env.VALHALLA_API_URL || DEFAULT_VALHALLA_API_UR
 const VALHALLA_STATUS_URL = buildStatusUrl(VALHALLA_API_URL);
 const VALHALLA_TILE_DIR = process.env.VALHALLA_TILE_DIR || '/data/valhalla_tiles';
 const VALHALLA_TILE_EXTRACT = process.env.VALHALLA_TILE_EXTRACT || '/data/valhalla_tiles.tar';
-const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 50);
+const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 18);
+const RELAXED_SNAP_RADIUS_METERS = Number(process.env.RELAXED_SNAP_RADIUS_METERS || 55);
 const GRAPHHOPPER_API_URL = process.env.GRAPHHOPPER_API_URL || 'https://graphhopper.com/api/1/route';
 const GRAPHHOPPER_API_KEY = process.env.GRAPHHOPPER_API_KEY || '';
 
@@ -269,7 +270,7 @@ function routeWithEngine(engine, locations, profile, directionsOptions) {
         throw createRoutingError('ROUTING_ENGINE_MISSING', 'Motore routing non specificato', 400);
     }
 
-    return routeWithSegmentRepair(engine, locations, profile, directionsOptions);
+    return routeWithPrimaryAndFallback(engine, locations, profile, directionsOptions);
 }
 
 function routeWithSingleEngine(engine, locations, profile, directionsOptions) {
@@ -286,6 +287,37 @@ function routeWithSingleEngine(engine, locations, profile, directionsOptions) {
     }
 
     throw createRoutingError('UNSUPPORTED_ROUTING_ENGINE', `Motore routing non supportato: ${engine}`, 400);
+}
+
+async function routeWithPrimaryAndFallback(engine, locations, profile, directionsOptions) {
+    try {
+        return await routeWithSingleEngine(engine, locations, profile, directionsOptions);
+    } catch (primaryError) {
+        if (locations.length < 3) {
+            throw primaryError;
+        }
+
+        try {
+            const repairedRoute = await routeWithSegmentRepair(engine, locations, profile, directionsOptions);
+            if (Array.isArray(repairedRoute.trip.diagnostics)) {
+                repairedRoute.trip.diagnostics = repairedRoute.trip.diagnostics.map(item => ({
+                    ...item,
+                    repaired: true
+                }));
+            }
+            repairedRoute.trip.summary.fallback = true;
+            repairedRoute.trip.summary.repaired_segments = true;
+            repairedRoute.trip.summary.primary_error = primaryError.code || primaryError.message;
+            return repairedRoute;
+        } catch (repairError) {
+            repairError.details = {
+                ...(repairError.details || {}),
+                primaryError: primaryError.publicMessage || primaryError.message,
+                primaryCode: primaryError.code || null
+            };
+            throw repairError;
+        }
+    }
 }
 
 async function routeWithSegmentRepair(engine, locations, profile, directionsOptions) {
@@ -450,56 +482,12 @@ async function routeWithValhalla(locations, profile, directionsOptions) {
     const costing = profile === 'cycling' ? 'bicycle' : 'pedestrian';
 
     try {
-        const response = await fetch(VALHALLA_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'RoutePlanner/1.0'
-            },
-            body: JSON.stringify({
-                locations: locations.map(loc => ({
-                    lat: loc.lat,
-                    lon: loc.lon,
-                    type: 'break',
-                    radius: profile === 'cycling' ? Math.max(SNAP_RADIUS_METERS, 70) : Math.max(SNAP_RADIUS_METERS, 50),
-                    rank_candidates: true,
-                    minimum_reachability: profile === 'cycling' ? 5 : 3
-                })),
-                costing,
-                costing_options: {
-                    pedestrian: {
-                        use_tracks: 1,
-                        use_paths: 1,
-                        use_living_streets: 0.9,
-                        walking_speed: 4.8
-                    },
-                    bicycle: {
-                        use_roads: 0.8,
-                        use_hills: 0.85,
-                        cycling_speed: 14
-                    }
-                },
-                directions_options: {
-                    language: directionsOptions.language || 'it-IT',
-                    units: 'kilometers'
-                },
-                units: 'kilometers'
-            }),
-            signal: controller.signal
-        });
-
-        if (!response.ok) {
-            throw new Error(`Valhalla responded with ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (!data.trip || !Array.isArray(data.trip.legs) || data.trip.legs.length === 0) {
-            throw new Error('Invalid Valhalla response');
-        }
-
-        const route = normalizeValhallaRoute(data, locations, profile);
+        const data = await requestValhallaRoute(locations, profile, directionsOptions, costing, controller.signal);
+        const route = normalizeValhallaRoute(data.response, locations, profile);
         route.trip.summary.routing_backend = 'local-valhalla';
         route.trip.summary.tiles_ready = true;
+        route.trip.summary.snap_mode = data.snapMode;
+        route.trip.summary.snap_radius_meters = data.snapRadiusMeters;
         route.trip.summary.active_region = status.activeRegion || null;
         route.trip.summary.last_built_at = status.lastBuiltAt || null;
         route.trip.summary.valhalla_status = status.upstreamStatus || null;
@@ -507,6 +495,90 @@ async function routeWithValhalla(locations, profile, directionsOptions) {
     } finally {
         clearTimeout(timeout);
     }
+}
+
+async function requestValhallaRoute(locations, profile, directionsOptions, costing, signal) {
+    const attempts = [
+        {
+            snapMode: 'nearest',
+            snapRadiusMeters: profile === 'cycling' ? Math.max(SNAP_RADIUS_METERS, 25) : SNAP_RADIUS_METERS,
+            rankCandidates: false,
+            minimumReachability: 0
+        },
+        {
+            snapMode: 'relaxed',
+            snapRadiusMeters: profile === 'cycling' ? Math.max(RELAXED_SNAP_RADIUS_METERS, 70) : RELAXED_SNAP_RADIUS_METERS,
+            rankCandidates: false,
+            minimumReachability: profile === 'cycling' ? 3 : 1
+        }
+    ];
+
+    let lastError = null;
+    for (const attempt of attempts) {
+        try {
+            return {
+                ...attempt,
+                response: await fetchValhallaRoute(locations, profile, directionsOptions, costing, signal, attempt)
+            };
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error('Valhalla route failed');
+}
+
+async function fetchValhallaRoute(locations, profile, directionsOptions, costing, signal, snapOptions) {
+    const routeLocations = locations.map((loc, index) => ({
+        lat: loc.lat,
+        lon: loc.lon,
+        type: index === 0 || index === locations.length - 1 ? 'break' : 'through',
+        radius: snapOptions.snapRadiusMeters,
+        rank_candidates: snapOptions.rankCandidates,
+        minimum_reachability: snapOptions.minimumReachability
+    }));
+
+    const response = await fetch(VALHALLA_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'RoutePlanner/1.0'
+        },
+        body: JSON.stringify({
+            locations: routeLocations,
+            costing,
+            costing_options: {
+                pedestrian: {
+                    use_tracks: 1,
+                    use_paths: 1,
+                    use_living_streets: 0.9,
+                    walking_speed: 4.8
+                },
+                bicycle: {
+                    use_roads: 0.8,
+                    use_hills: 0.85,
+                    cycling_speed: 14
+                }
+            },
+            directions_options: {
+                language: directionsOptions.language || 'it-IT',
+                units: 'kilometers'
+            },
+            units: 'kilometers'
+        }),
+        signal
+    });
+
+    if (!response.ok) {
+        throw new Error(`Valhalla responded with ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.trip || !Array.isArray(data.trip.legs) || data.trip.legs.length === 0) {
+        throw new Error('Invalid Valhalla response');
+    }
+
+    return data;
 }
 
 async function routeWithOsrm(locations, profile) {
@@ -1006,16 +1078,11 @@ async function getLocalValhallaStatus() {
 
 async function readTileDirectoryState() {
     try {
-        const entries = await fs.readdir(VALHALLA_TILE_DIR, { withFileTypes: true });
-        const visibleEntries = entries.filter(entry =>
-            !entry.name.startsWith('.') &&
-            entry.name !== 'manifest.json' &&
-            entry.name !== 'region.json'
-        );
+        const tileCount = await countTileFiles(VALHALLA_TILE_DIR);
         return {
             exists: true,
-            count: visibleEntries.length,
-            hasTiles: visibleEntries.length > 0
+            count: tileCount,
+            hasTiles: tileCount > 0
         };
     } catch (error) {
         return {
@@ -1024,6 +1091,26 @@ async function readTileDirectoryState() {
             hasTiles: false
         };
     }
+}
+
+async function countTileFiles(directory) {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    let count = 0;
+
+    for (const entry of entries) {
+        if (entry.name.startsWith('.') || entry.name === 'manifest.json' || entry.name === 'region.json') {
+            continue;
+        }
+
+        const entryPath = `${directory}/${entry.name}`;
+        if (entry.isDirectory()) {
+            count += await countTileFiles(entryPath);
+        } else if (entry.isFile() && entry.name !== 'tile_manifest.json') {
+            count += 1;
+        }
+    }
+
+    return count;
 }
 
 async function readValhallaManifest() {

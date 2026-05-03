@@ -18,6 +18,7 @@
         <div class="menu-item" id="menu-edit">Modifica</div>
         <div class="menu-item" id="menu-view">Visualizza</div>
         <div class="menu-item" id="menu-maps">Mappe</div>
+        <div class="menu-item" id="menu-settings">Impostazioni</div>
     </div>
 
     <!-- File Dropdown -->
@@ -37,14 +38,7 @@
 
     <!-- View Dropdown -->
     <div id="dropdown-view" class="dropdown hidden">
-        <div class="dropdown-item" id="toggle-left-panel">Punti percorso</div>
-        <div class="dropdown-item" id="toggle-right-panel">Tipi segnaposto</div>
-        <div class="dropdown-item" id="toggle-bottom-panel">Statistiche percorso</div>
-        <div class="dropdown-item" id="toggle-top-panel">Profilo altimetrico</div>
-        <div class="dropdown-item" id="toggle-directions-panel">Indicazioni passo-passo</div>
-        <div class="dropdown-item" id="toggle-routing-debug">Strade usate dal routing</div>
-        <div class="dropdown-item" id="toggle-osm-graph">Grafo OSM adiacente</div>
-        <div class="dropdown-item" id="offline-maps">Mappe Offline (Tile)</div>
+        <div class="dropdown-item" id="open-settings-from-view">Apri impostazioni</div>
     </div>
 
     <!-- Maps Dropdown -->
@@ -53,10 +47,6 @@
         <div class="dropdown-item map-layer-option" data-map-layer="osm">OpenStreetMap</div>
         <div class="dropdown-item map-layer-option" data-map-layer="cyclosm">CyclOSM</div>
         <div class="dropdown-item map-layer-option" data-map-layer="tracestrack">Tracestrack Topo</div>
-        <div class="dropdown-item" id="set-tracestrack-key">Chiave Tracestrack</div>
-        <div class="dropdown-item" id="toggle-trail-overlay">Sentieri Waymarked</div>
-        <div class="dropdown-item" id="toggle-contour-overlay">Isoipse / Isobate</div>
-        <div class="dropdown-item" id="map-manager">Gestione Mappe Regionali</div>
     </div>
 
     <!-- Map Container -->
@@ -159,6 +149,20 @@
         </div>
     </div>
 
+    <!-- OSM Inspector Panel -->
+    <div id="osm-inspector-panel" class="panel osm-inspector-panel hidden">
+        <div class="panel-header">
+            <h3>Inspector OSM</h3>
+            <button class="close-btn" data-panel="osm-inspector-panel">×</button>
+        </div>
+        <div class="panel-content">
+            <div id="osm-inspector-empty" class="osm-inspector-empty">
+                Clicca su una strada del grafo OSM per analizzarla.
+            </div>
+            <div id="osm-inspector-content" class="osm-inspector-content hidden"></div>
+        </div>
+    </div>
+
     <!-- Export Page -->
     <div id="export-page" class="page hidden">
         <div class="page-header">
@@ -185,6 +189,118 @@
 
     <!-- Hidden file input for import -->
     <input type="file" id="file-input" accept=".json" style="display: none;">
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal settings-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="modal-content settings-modal-content">
+            <div class="settings-header">
+                <div>
+                    <p class="settings-kicker">Route Planner</p>
+                    <h3 id="settings-title">Impostazioni</h3>
+                </div>
+                <button class="close-btn" id="close-settings-modal" aria-label="Chiudi impostazioni">×</button>
+            </div>
+
+            <div class="settings-grid">
+                <section class="settings-section">
+                    <h4>Pannelli</h4>
+                    <label class="settings-row" for="toggle-left-panel">
+                        <span>
+                            <strong>Punti percorso</strong>
+                            <small>Lista punti, routing e colore percorso.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-left-panel" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-right-panel">
+                        <span>
+                            <strong>Tipi segnaposto</strong>
+                            <small>Gestione colori e categorie dei marker.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-right-panel" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-bottom-panel">
+                        <span>
+                            <strong>Statistiche</strong>
+                            <small>Distanza, dislivelli e tempi stimati.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-bottom-panel" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-top-panel">
+                        <span>
+                            <strong>Profilo altimetrico</strong>
+                            <small>Grafico quota lungo la traccia.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-top-panel" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-directions-panel">
+                        <span>
+                            <strong>Indicazioni</strong>
+                            <small>Passaggi e note personalizzate.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-directions-panel" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-osm-inspector">
+                        <span>
+                            <strong>Inspector OSM</strong>
+                            <small>Dettagli sui way cliccati nel grafo OSM.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-osm-inspector" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                </section>
+
+                <section class="settings-section">
+                    <h4>Debug routing</h4>
+                    <label class="settings-row" for="toggle-routing-debug">
+                        <span>
+                            <strong>Strade usate dal routing</strong>
+                            <small>Mostra il layer diagnostico sul percorso calcolato.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-routing-debug" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-osm-graph">
+                        <span>
+                            <strong>Grafo OSM adiacente</strong>
+                            <small>Carica i way vicini per capire snapping e accessi.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-osm-graph" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+
+                    <h4>Overlay mappa</h4>
+                    <label class="settings-row" for="toggle-trail-overlay">
+                        <span>
+                            <strong>Sentieri Waymarked</strong>
+                            <small>Overlay sentieristico esterno.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-trail-overlay" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-contour-overlay">
+                        <span>
+                            <strong>Isoipse / Isobate</strong>
+                            <small>Curve di livello sopra la mappa base.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-contour-overlay" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+
+                    <h4>Azioni rare</h4>
+                    <div class="settings-actions">
+                        <button class="btn secondary" id="set-tracestrack-key">Chiave Tracestrack</button>
+                        <button class="btn secondary" id="offline-maps">Mappe Offline (Tile)</button>
+                        <button class="btn secondary" id="map-manager">Gestione Mappe Regionali</button>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
 
     <!-- Offline Maps Modal -->
     <div id="offline-maps-modal" class="modal hidden">

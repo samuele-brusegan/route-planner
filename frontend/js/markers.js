@@ -4,8 +4,21 @@
 function updateMarkersList() {
     const container = document.getElementById('markers-list');
     container.innerHTML = '';
+    container.classList.toggle('dragging', Boolean(draggedItem));
     
-    AppState.markers.forEach((marker, index) => {
+    for (let index = 0; index <= AppState.markers.length; index++) {
+        if (index < AppState.markers.length) {
+            const slot = createMarkerInsertSlot(index);
+            container.appendChild(slot);
+        }
+
+        if (index === AppState.markers.length) {
+            const tailSlot = createMarkerTailSlot(index);
+            container.appendChild(tailSlot);
+            break;
+        }
+
+        const marker = AppState.markers[index];
         const markerType = AppState.markerTypes.find(t => t.id === marker.type);
         
         const item = document.createElement('div');
@@ -30,7 +43,53 @@ function updateMarkersList() {
         item.addEventListener('dragend', handleDragEnd);
         
         container.appendChild(item);
+    }
+}
+
+function createMarkerInsertSlot(index) {
+    const slot = document.createElement('div');
+    slot.className = 'marker-insert-slot';
+    slot.dataset.index = index;
+    slot.innerHTML = `
+        <div class="marker-insert-line"></div>
+        <button type="button" class="marker-insert-button" title="Inserisci punto qui">+</button>
+    `;
+
+    slot.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startMarkerInsertMode(index);
     });
+
+    slot.addEventListener('dragover', handleInsertSlotDragOver);
+    slot.addEventListener('dragenter', handleInsertSlotDragEnter);
+    slot.addEventListener('dragleave', handleInsertSlotDragLeave);
+    slot.addEventListener('drop', handleInsertSlotDrop);
+
+    return slot;
+}
+
+function createMarkerTailSlot(index) {
+    const slot = document.createElement('div');
+    slot.className = 'marker-insert-slot marker-insert-slot-tail';
+    slot.dataset.index = index;
+    slot.innerHTML = `
+        <div class="marker-insert-line"></div>
+        <button type="button" class="marker-insert-button" title="Aggiungi in coda">+</button>
+    `;
+
+    slot.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        startMarkerInsertMode(index);
+    });
+
+    slot.addEventListener('dragover', handleInsertSlotDragOver);
+    slot.addEventListener('dragenter', handleInsertSlotDragEnter);
+    slot.addEventListener('dragleave', handleInsertSlotDragLeave);
+    slot.addEventListener('drop', handleInsertSlotDrop);
+
+    return slot;
 }
 
 // Update marker types list in UI
@@ -221,46 +280,115 @@ function deleteMarkerType(typeId) {
 
 // Drag and drop handlers
 let draggedItem = null;
+let activeInsertSlot = null;
 
 function handleDragStart(e) {
     draggedItem = this;
     this.style.opacity = '0.5';
+    const container = document.getElementById('markers-list');
+    if (container) {
+        container.classList.add('dragging');
+    }
 }
 
 function handleDragOver(e) {
     e.preventDefault();
-    this.style.border = '2px dashed #4a90a4';
+    if (!draggedItem) return;
+
+    const index = Number(this.dataset.index);
+    const rect = this.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const targetSlot = e.clientY < midpoint ? index : index + 1;
+    setActiveInsertSlot(targetSlot);
 }
 
 function handleDrop(e) {
     e.preventDefault();
-    this.style.border = '1px solid #eee';
-    
-    if (draggedItem !== this) {
-        const fromIndex = parseInt(draggedItem.dataset.index);
-        const toIndex = parseInt(this.dataset.index);
-        
-        // Reorder markers
-        const marker = AppState.markers.splice(fromIndex, 1)[0];
-        AppState.markers.splice(toIndex, 0, marker);
-        
-        // Update order
-        AppState.markers.forEach((m, i) => m.order = i);
-        
-        saveToLocalStorage();
-        clearMapMarkers();
-        AppState.markers.forEach(m => addMarkerToMap(m));
-        updateUI();
-        
-        if (AppState.markers.length >= 2) {
-            calculateRoute();
-        }
+    if (draggedItem === this) return;
+
+    const fromIndex = parseInt(draggedItem.dataset.index, 10);
+    const toIndex = Number.isFinite(activeInsertSlot)
+        ? activeInsertSlot
+        : parseInt(this.dataset.index, 10);
+    moveMarker(fromIndex, toIndex);
+    finalizeMarkerReorder();
+}
+
+function handleInsertSlotDragEnter(e) {
+    e.preventDefault();
+    setActiveInsertSlot(Number(this.dataset.index));
+}
+
+function handleInsertSlotDragOver(e) {
+    e.preventDefault();
+    setActiveInsertSlot(Number(this.dataset.index));
+}
+
+function handleInsertSlotDragLeave(e) {
+    if (e.relatedTarget && this.contains(e.relatedTarget)) {
+        return;
+    }
+
+    if (activeInsertSlot === Number(this.dataset.index)) {
+        clearActiveInsertSlot();
     }
 }
 
-function handleDragEnd(e) {
-    this.style.opacity = '1';
-    document.querySelectorAll('.marker-item').forEach(item => {
-        item.style.border = '1px solid #eee';
+function handleInsertSlotDrop(e) {
+    e.preventDefault();
+    if (!draggedItem) {
+        startMarkerInsertMode(Number(this.dataset.index));
+        return;
+    }
+
+    const fromIndex = parseInt(draggedItem.dataset.index, 10);
+    const toIndex = parseInt(this.dataset.index, 10);
+    moveMarker(fromIndex, toIndex);
+    finalizeMarkerReorder();
+}
+
+function setActiveInsertSlot(index) {
+    activeInsertSlot = Number.isFinite(Number(index)) ? Number(index) : null;
+    document.querySelectorAll('.marker-insert-slot').forEach(slot => {
+        slot.classList.toggle('active', Number(slot.dataset.index) === activeInsertSlot);
     });
+}
+
+function clearActiveInsertSlot() {
+    activeInsertSlot = null;
+    document.querySelectorAll('.marker-insert-slot').forEach(slot => {
+        slot.classList.remove('active');
+    });
+}
+
+function startMarkerInsertMode(index) {
+    AppState.pendingMarkerInsertIndex = Number(index);
+    const slotLabel = Number(index) >= AppState.markers.length
+        ? 'in coda'
+        : `tra i punti ${Number(index) + 1} e ${Number(index) + 2}`;
+    alert(`Clicca sulla mappa per inserire un nuovo punto ${slotLabel}.`);
+}
+
+function finalizeMarkerReorder() {
+    clearActiveInsertSlot();
+    draggedItem = null;
+    saveToLocalStorage();
+    clearMapMarkers();
+    AppState.markers.forEach(m => addMarkerToMap(m));
+    updateUI();
+
+    if (AppState.markers.length >= 2) {
+        calculateRoute();
+    }
+}
+
+function handleDragEnd() {
+    this.style.opacity = '';
+    draggedItem = null;
+    clearActiveInsertSlot();
+    const container = document.getElementById('markers-list');
+    if (container) {
+        container.classList.remove('dragging');
+    }
+    updateMarkersList();
 }
