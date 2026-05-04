@@ -161,3 +161,6 @@ Il difetto non è l’assenza del grafo, ma la combinazione di:
 
 La soluzione corretta è trattare questo come un problema di integrità del routing, non come un semplice problema di rendering o di UI.
 
+
+# Soluzione da implemetrare
+Attualmente dal router i percorsi con `sac_scale=mountain_hiking` vengono scartati
