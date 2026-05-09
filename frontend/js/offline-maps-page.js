@@ -1,3 +1,8 @@
+// Fallback showToast for standalone pages without ui.js
+if (typeof showToast === 'undefined') {
+    window.showToast = function(message) { console.log('[Toast]', message); };
+}
+
 // Hierarchical region data
 const REGION_DATA = {
     world: {
@@ -261,7 +266,7 @@ function handleDownload(e) {
     const bounds = currentSelection.bounds;
     
     if (!bounds) {
-        alert('Seleziona prima una regione');
+        showToast('Seleziona prima una regione', 'warn');
         return;
     }
 
@@ -278,16 +283,16 @@ function handleDownload(e) {
         document.getElementById('download-progress-bar').value = progress;
         document.getElementById('download-progress-text').textContent = `${downloaded} / ${total} tile`;
     }).then(result => {
-        alert(`Download completato! ${result.downloaded} tile scaricate su ${result.totalTiles}`);
+        showToast(`Download completato! ${result.downloaded} tile scaricate su ${result.totalTiles}`, 'success');
         document.getElementById('download-progress-section').style.display = 'none';
         document.getElementById('map-types-section').style.display = 'block';
         loadDownloadedMaps();
     }).catch(error => {
         if (error.name === 'AbortError') {
-            alert('Download annullato');
+            showToast('Download annullato', 'info');
         } else {
             console.error('Download error:', error);
-            alert('Errore durante il download: ' + error.message);
+            showToast('Errore durante il download: ' + error.message, 'error');
         }
         document.getElementById('download-progress-section').style.display = 'none';
         document.getElementById('map-types-section').style.display = 'block';
@@ -340,10 +345,10 @@ async function clearAllMaps() {
         try {
             await clearOfflineTiles();
             loadDownloadedMaps();
-            alert('Mappe cancellate con successo');
+            showToast('Mappe cancellate con successo', 'success');
         } catch (error) {
             console.error('Error clearing maps:', error);
-            alert('Errore durante la cancellazione');
+            showToast('Errore durante la cancellazione', 'error');
         }
     }
 }

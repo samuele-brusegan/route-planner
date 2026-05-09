@@ -17,6 +17,68 @@ const AppState = {
     dailyStats: []
 };
 
+// Undo/Redo system
+const UndoManager = {
+    undoStack: [],
+    redoStack: [],
+    maxHistory: 50,
+
+    snapshot() {
+        return JSON.stringify({
+            markers: AppState.markers,
+            markerTypes: AppState.markerTypes
+        });
+    },
+
+    push() {
+        this.undoStack.push(this.snapshot());
+        if (this.undoStack.length > this.maxHistory) {
+            this.undoStack.shift();
+        }
+        this.redoStack = [];
+    },
+
+    undo() {
+        if (this.undoStack.length === 0) return false;
+        this.redoStack.push(this.snapshot());
+        const state = JSON.parse(this.undoStack.pop());
+        this._apply(state);
+        return true;
+    },
+
+    redo() {
+        if (this.redoStack.length === 0) return false;
+        this.undoStack.push(this.snapshot());
+        const state = JSON.parse(this.redoStack.pop());
+        this._apply(state);
+        return true;
+    },
+
+    _apply(state) {
+        AppState.markers = state.markers;
+        AppState.markerTypes = state.markerTypes;
+        clearMapMarkers();
+        AppState.markers.forEach(m => addMarkerToMap(m));
+        if (AppState.markers.length >= 2) {
+            calculateRoute();
+        } else {
+            AppState.route = null;
+            AppState.directions = [];
+            clearRoute();
+            calculateStatistics().then(() => {
+                updateElevationChart();
+                updateUI();
+                saveToLocalStorage();
+            });
+        }
+        updateUI();
+        saveToLocalStorage();
+    },
+
+    canUndo() { return this.undoStack.length > 0; },
+    canRedo() { return this.redoStack.length > 0; }
+};
+
 AppState.routeColor = '#4a90a4';
 AppState.routingEngine = 'valhalla';
 AppState.routingProfile = 'walking';
@@ -144,6 +206,7 @@ async function loadFromLocalStorage() {
 // Clear all data
 function clearAll() {
     if (confirm('Sei sicuro di voler cancellare tutti i dati?')) {
+        UndoManager.push();
         AppState.markers = [];
         AppState.route = null;
         AppState.directions = [];
@@ -239,9 +302,9 @@ function importJSON(file) {
             saveToLocalStorage();
             updateUI();
             
-            alert('Importazione completata con successo!');
+            showToast('Importazione completata con successo!', 'success');
         } catch (error) {
-            alert('Errore durante l\'importazione: ' + error.message);
+            showToast('Errore durante l\'importazione: ' + error.message, 'error');
         }
     };
     reader.readAsText(file);

@@ -79,35 +79,61 @@ function calculateDailyStats(elevationData) {
     }
 }
 
-// Calculate stats for a specific segment
-function calculateDayStats(startIndex, endIndex, elevationData) {
-    // This is a simplified calculation
-    // In a real implementation, you'd need to map the elevation data to the route segments
-    
-    const segmentMarkers = AppState.markers.slice(startIndex, endIndex + 1);
-    let segmentDistance = 0;
-    
-    for (let i = 0; i < segmentMarkers.length - 1; i++) {
-        const dist = haversineDistance(
-            segmentMarkers[i].lat, segmentMarkers[i].lon,
-            segmentMarkers[i + 1].lat, segmentMarkers[i + 1].lon
-        );
-        segmentDistance += dist;
+// Calculate stats for a specific segment using actual route coordinates
+function calculateDayStats(startMarkerIndex, endMarkerIndex, elevationData) {
+    const route = AppState.route;
+    const coords = route && route.coordinates ? route.coordinates : [];
+    const startMarker = AppState.markers[startMarkerIndex];
+    const endMarker = AppState.markers[endMarkerIndex];
+
+    if (!startMarker || !endMarker || coords.length === 0) {
+        return { distance: '0.00', ascent: 0, descent: 0, time: '0h 0m' };
     }
-    
-    // Simplified elevation calculation (proportional to total)
-    const proportion = AppState.stats.totalDistance > 0
-        ? segmentDistance / AppState.stats.totalDistance
-        : 0;
-    const ascent = Math.round(AppState.stats.totalAscent * proportion);
-    const descent = Math.round(AppState.stats.totalDescent * proportion);
-    
+
+    const startIdx = findClosestRouteIndex(coords, startMarker.lon, startMarker.lat);
+    const endIdx = findClosestRouteIndex(coords, endMarker.lon, endMarker.lat);
+    const from = Math.min(startIdx, endIdx);
+    const to = Math.max(startIdx, endIdx);
+
+    let segmentDistance = 0;
+    for (let i = from + 1; i <= to && i < coords.length; i++) {
+        segmentDistance += haversineDistance(
+            coords[i - 1][1], coords[i - 1][0],
+            coords[i][1], coords[i][0]
+        );
+    }
+
+    let ascent = 0;
+    let descent = 0;
+    if (elevationData && elevationData.length > 0) {
+        const elevFrom = Math.min(from, elevationData.length - 1);
+        const elevTo = Math.min(to, elevationData.length - 1);
+        for (let i = elevFrom + 1; i <= elevTo; i++) {
+            const diff = elevationData[i].elevation - elevationData[i - 1].elevation;
+            if (diff > 0) ascent += diff;
+            else descent += Math.abs(diff);
+        }
+    }
+
     return {
         distance: segmentDistance.toFixed(2),
-        ascent: ascent,
-        descent: descent,
-        time: calculateTime(segmentDistance, ascent)
+        ascent: Math.round(ascent),
+        descent: Math.round(descent),
+        time: calculateTime(segmentDistance, Math.round(ascent))
     };
+}
+
+function findClosestRouteIndex(coords, lon, lat) {
+    let closestIdx = 0;
+    let closestDist = Infinity;
+    for (let i = 0; i < coords.length; i++) {
+        const d = Math.pow(coords[i][0] - lon, 2) + Math.pow(coords[i][1] - lat, 2);
+        if (d < closestDist) {
+            closestDist = d;
+            closestIdx = i;
+        }
+    }
+    return closestIdx;
 }
 
 // Update statistics display
