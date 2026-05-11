@@ -288,7 +288,6 @@ let draggedItem = null;
 let activeInsertSlot = null;
 
 function handleDragStart(e) {
-    UndoManager.push();
     draggedItem = this;
     this.style.opacity = '0.5';
     const container = document.getElementById('markers-list');
@@ -316,6 +315,9 @@ function handleDrop(e) {
     const toIndex = Number.isFinite(activeInsertSlot)
         ? activeInsertSlot
         : parseInt(this.dataset.index, 10);
+    if (fromIndex !== toIndex) {
+        UndoManager.push();
+    }
     moveMarker(fromIndex, toIndex);
     finalizeMarkerReorder();
 }
@@ -349,6 +351,9 @@ function handleInsertSlotDrop(e) {
 
     const fromIndex = parseInt(draggedItem.dataset.index, 10);
     const toIndex = parseInt(this.dataset.index, 10);
+    if (fromIndex !== toIndex) {
+        UndoManager.push();
+    }
     moveMarker(fromIndex, toIndex);
     finalizeMarkerReorder();
 }

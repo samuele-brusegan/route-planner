@@ -107,13 +107,14 @@ function setupMenuDropdowns() {
 
     // Keyboard shortcuts for undo/redo
     document.addEventListener('keydown', (event) => {
-        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key === 'z') {
+        const key = event.key.toLowerCase();
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === 'z') {
             event.preventDefault();
             UndoManager.undo();
-        } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'z') {
+        } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'z') {
             event.preventDefault();
             UndoManager.redo();
-        } else if ((event.ctrlKey || event.metaKey) && event.key === 'y') {
+        } else if ((event.ctrlKey || event.metaKey) && key === 'y') {
             event.preventDefault();
             UndoManager.redo();
         }
