@@ -1,5 +1,5 @@
 // Routing integration with Valhalla
-const ROUTING_API_URL = `${window.location.protocol}//${window.location.hostname}:8002`;
+const ROUTING_API_URL = window.ROUTING_API_URL || `${window.location.protocol}//${window.location.hostname}:8002`;
 
 // Calculate route between markers
 async function calculateRoute() {
@@ -159,20 +159,89 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Get elevation data for route
+// Get elevation data for route using Open-Meteo Elevation API
 async function getElevationData(coordinates) {
+    if (!coordinates || coordinates.length === 0) return [];
+
+    const sampled = sampleElevationCoordinates(coordinates, 300);
+
     try {
-        return coordinates.map(coord => ({
+        const elevations = await fetchElevationBatch(sampled);
+        if (elevations && elevations.length === sampled.length) {
+            return interpolateElevation(coordinates, sampled, elevations);
+        }
+    } catch (error) {
+        console.error('Elevation API error, using fallback:', error);
+    }
+
+    return coordinates.map(coord => ({
+        lat: coord[1],
+        lon: coord[0],
+        elevation: 0
+    }));
+}
+
+function sampleElevationCoordinates(coordinates, maxPoints) {
+    if (coordinates.length <= maxPoints) return coordinates;
+    const result = [];
+    const step = (coordinates.length - 1) / (maxPoints - 1);
+    for (let i = 0; i < maxPoints; i++) {
+        result.push(coordinates[Math.round(i * step)]);
+    }
+    return result;
+}
+
+async function fetchElevationBatch(coordinates) {
+    const batchSize = 100;
+    const allElevations = [];
+
+    for (let i = 0; i < coordinates.length; i += batchSize) {
+        const batch = coordinates.slice(i, i + batchSize);
+        const lats = batch.map(c => c[1]).join(',');
+        const lons = batch.map(c => c[0]).join(',');
+        const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`;
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Elevation API responded with ${response.status}`);
+
+        const data = await response.json();
+        if (!Array.isArray(data.elevation)) throw new Error('Invalid elevation response');
+
+        allElevations.push(...data.elevation);
+    }
+
+    return allElevations;
+}
+
+function interpolateElevation(allCoordinates, sampledCoordinates, elevations) {
+    if (allCoordinates.length === sampledCoordinates.length) {
+        return allCoordinates.map((coord, i) => ({
             lat: coord[1],
             lon: coord[0],
-            elevation: Math.round(
-                900 +
-                (Math.sin(coord[1] * 3.1) * 140) +
-                (Math.cos(coord[0] * 2.7) * 120)
-            )
+            elevation: Math.round(elevations[i])
         }));
-    } catch (error) {
-        console.error('Elevation error:', error);
-        return [];
     }
+
+    const sampledIndices = [];
+    const step = (allCoordinates.length - 1) / (sampledCoordinates.length - 1);
+    for (let i = 0; i < sampledCoordinates.length; i++) {
+        sampledIndices.push(Math.round(i * step));
+    }
+
+    return allCoordinates.map((coord, idx) => {
+        let lower = 0;
+        for (let j = 0; j < sampledIndices.length - 1; j++) {
+            if (sampledIndices[j + 1] > idx) { lower = j; break; }
+            lower = j;
+        }
+        const upper = Math.min(lower + 1, sampledIndices.length - 1);
+
+        if (lower === upper || sampledIndices[lower] === sampledIndices[upper]) {
+            return { lat: coord[1], lon: coord[0], elevation: Math.round(elevations[lower]) };
+        }
+
+        const t = (idx - sampledIndices[lower]) / (sampledIndices[upper] - sampledIndices[lower]);
+        const elev = elevations[lower] + t * (elevations[upper] - elevations[lower]);
+        return { lat: coord[1], lon: coord[0], elevation: Math.round(elev) };
+    });
 }

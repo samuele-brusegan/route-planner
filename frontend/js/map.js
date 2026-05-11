@@ -109,6 +109,33 @@ async function initMap() {
     });
     map.addLayer(osmGraphLayer);
 
+    // Single Modify interaction for all markers (avoids memory leak)
+    const markerModifyInteraction = new ol.interaction.Modify({
+        source: markerLayer.getSource()
+    });
+    map.addInteraction(markerModifyInteraction);
+
+    markerModifyInteraction.on('modifystart', () => {
+        UndoManager.push();
+    });
+
+    markerModifyInteraction.on('modifyend', (event) => {
+        const feature = event.features.getArray()[0];
+        const coords = ol.proj.toLonLat(feature.getGeometry().getCoordinates());
+        const markerData = feature.get('markerData');
+
+        const marker = AppState.markers.find(m => m.id === markerData.id);
+        if (marker) {
+            marker.lat = coords[1];
+            marker.lon = coords[0];
+            saveToLocalStorage();
+
+            if (AppState.markers.length >= 2) {
+                calculateRoute();
+            }
+        }
+    });
+
     // Add click handler for placing markers
     map.on('click', handleMapClick);
     
@@ -700,15 +727,6 @@ function matchesAny(value, options) {
     return options.includes(normalizeTagValue(value));
 }
 
-function escapeHtml(value) {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 // Cache default world map (low zoom levels)
 async function cacheDefaultWorldMap() {
     const worldBounds = { minLon: -180, maxLon: 180, minLat: -90, maxLat: 90 };
@@ -804,6 +822,7 @@ function showAddMarkerModal(coords, insertIndex = AppState.markers.length) {
 
     // Handle confirm
     document.getElementById('confirm-marker').addEventListener('click', () => {
+        UndoManager.push();
         const typeId = document.getElementById('marker-type-select').value;
         const defaultNameIndex = targetIndex;
         const name = document.getElementById('marker-name-input').value || `Punto ${defaultNameIndex + 1}`;
@@ -879,31 +898,6 @@ function addMarkerToMap(markerData) {
 
     feature.setStyle(style);
     markerLayer.getSource().addFeature(feature);
-
-    // Make marker draggable
-    const dragInteraction = new ol.interaction.Modify({
-        source: markerLayer.getSource()
-    });
-    map.addInteraction(dragInteraction);
-
-    dragInteraction.on('modifyend', (event) => {
-        const feature = event.features.getArray()[0];
-        const coords = ol.proj.toLonLat(feature.getGeometry().getCoordinates());
-        const markerData = feature.get('markerData');
-        
-        // Update marker coordinates
-        const marker = AppState.markers.find(m => m.id === markerData.id);
-        if (marker) {
-            marker.lat = coords[1];
-            marker.lon = coords[0];
-            saveToLocalStorage();
-            
-            // Recalculate route
-            if (AppState.markers.length >= 2) {
-                calculateRoute();
-            }
-        }
-    });
 }
 
 // Clear all markers from map
