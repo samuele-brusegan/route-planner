@@ -1,3 +1,6 @@
 data/*.osm.pbf
 data/valhalla_tiles/
 data/valhalla_tiles.tar
+data/valhalla/
+data/routing-mode.json
+data/tiles-state.json

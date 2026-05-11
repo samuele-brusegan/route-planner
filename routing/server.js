@@ -1,12 +1,54 @@
 const express = require('express');
 const fs = require('fs').promises;
+const fsSync = require('fs');
+const path = require('path');
 const app = express();
 const PORT = 8002;
-const DEFAULT_VALHALLA_API_URL = 'http://valhalla:8002/route';
-const VALHALLA_API_URL = process.env.VALHALLA_API_URL || DEFAULT_VALHALLA_API_URL;
-const VALHALLA_STATUS_URL = buildStatusUrl(VALHALLA_API_URL);
+const VALHALLA_REMOTE_URL = process.env.VALHALLA_REMOTE_URL || 'https://valhalla1.openstreetmap.de/route';
+const VALHALLA_LOCAL_URL = process.env.VALHALLA_LOCAL_URL || 'http://valhalla:8002/route';
+const VALHALLA_ADMIN_URL = process.env.VALHALLA_ADMIN_URL || 'http://valhalla:8003';
+const MODE_FILE = process.env.ROUTING_MODE_FILE || '/data/routing-mode.json';
+const VALHALLA_STATUS_URL = process.env.VALHALLA_STATUS_URL || 'http://valhalla:8002/status';
+// Backward-compat aliases
+const DEFAULT_VALHALLA_API_URL = VALHALLA_REMOTE_URL;
+const LOCAL_VALHALLA_API_URL = VALHALLA_LOCAL_URL;
 const VALHALLA_TILE_DIR = process.env.VALHALLA_TILE_DIR || '/data/valhalla_tiles';
 const VALHALLA_TILE_EXTRACT = process.env.VALHALLA_TILE_EXTRACT || '/data/valhalla_tiles.tar';
+
+// Initial mode: env override → state file → 'remote'
+function readModeFromFile() {
+    try {
+        const raw = fsSync.readFileSync(MODE_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && (parsed.mode === 'local' || parsed.mode === 'remote')) {
+            return parsed.mode;
+        }
+    } catch (_) {}
+    return null;
+}
+
+function writeModeToFile(mode) {
+    try {
+        fsSync.mkdirSync(path.dirname(MODE_FILE), { recursive: true });
+        fsSync.writeFileSync(MODE_FILE, JSON.stringify({ mode, updatedAt: Date.now() }, null, 2));
+    } catch (e) {
+        console.error('Failed to persist routing mode:', e.message);
+    }
+}
+
+let currentMode = (() => {
+    if (process.env.USE_LOCAL_VALHALLA === 'true') return 'local';
+    if (process.env.USE_LOCAL_VALHALLA === 'false') return readModeFromFile() || 'remote';
+    return readModeFromFile() || 'remote';
+})();
+
+function getValhallaApiUrl() {
+    return currentMode === 'local' ? VALHALLA_LOCAL_URL : VALHALLA_REMOTE_URL;
+}
+
+function isLocalMode() {
+    return currentMode === 'local';
+}
 const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 18);
 const RELAXED_SNAP_RADIUS_METERS = Number(process.env.RELAXED_SNAP_RADIUS_METERS || 55);
 const GRAPHHOPPER_API_URL = process.env.GRAPHHOPPER_API_URL || 'https://graphhopper.com/api/1/route';
@@ -52,21 +94,112 @@ app.post('/route', async (req, res) => {
 
 app.get('/status', async (req, res) => {
     try {
-        const valhalla = await getLocalValhallaStatus();
+        const useLocal = isLocalMode();
+        const valhalla = useLocal ? await getLocalValhallaStatus() : { reachable: true, tilesReady: true };
+
         res.json({
             service: 'routing',
             engine: 'valhalla',
-            profile: 'local-first',
-            valhalla
+            profile: useLocal ? 'local' : 'online',
+            mode: currentMode,
+            valhalla,
+            backend: useLocal ? 'local-valhalla' : 'online-valhalla',
+            apiUrl: getValhallaApiUrl()
         });
     } catch (error) {
         console.error('Routing status error:', error);
         res.status(503).json({
             service: 'routing',
             engine: 'valhalla',
-            profile: 'local-first',
+            profile: 'error',
             error: error.message
         });
+    }
+});
+
+// === Mode management ===
+app.get('/mode', (req, res) => {
+    res.json({ mode: currentMode });
+});
+
+app.post('/mode', async (req, res) => {
+    const requested = req.body && req.body.mode;
+    if (requested !== 'local' && requested !== 'remote') {
+        return res.status(400).json({ error: "mode must be 'local' or 'remote'" });
+    }
+    if (requested === 'local') {
+        // Validate that local engine has tiles before switching
+        try {
+            const status = await adminFetch('/tiles/status');
+            if (!status || !status.hasLocalTiles) {
+                return res.status(409).json({
+                    error: 'Tile locali non disponibili. Scaricale prima di passare alla modalità locale.',
+                    code: 'NO_LOCAL_TILES'
+                });
+            }
+        } catch (e) {
+            return res.status(503).json({ error: 'Impossibile contattare admin Valhalla: ' + e.message });
+        }
+    }
+    currentMode = requested;
+    writeModeToFile(currentMode);
+    res.json({ mode: currentMode });
+});
+
+// === Tile admin proxy ===
+async function adminFetch(path, options = {}) {
+    const url = VALHALLA_ADMIN_URL.replace(/\/$/, '') + path;
+    const response = await fetch(url, {
+        method: options.method || 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: AbortSignal.timeout(options.timeoutMs || 8000)
+    });
+    const text = await response.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; } catch (_) { data = { raw: text }; }
+    if (!response.ok) {
+        const err = new Error(data.error || `Admin responded with ${response.status}`);
+        err.statusCode = response.status;
+        err.details = data;
+        throw err;
+    }
+    return data;
+}
+
+app.get('/tiles/status', async (req, res) => {
+    try {
+        const data = await adminFetch('/tiles/status');
+        res.json(data);
+    } catch (e) {
+        res.status(e.statusCode || 503).json({ error: e.message });
+    }
+});
+
+app.get('/tiles/regions', async (req, res) => {
+    try {
+        const data = await adminFetch('/tiles/regions');
+        res.json(data);
+    } catch (e) {
+        res.status(e.statusCode || 503).json({ error: e.message });
+    }
+});
+
+app.post('/tiles/build', async (req, res) => {
+    try {
+        const data = await adminFetch('/tiles/build', { method: 'POST', body: { region: req.body && req.body.region } });
+        res.status(202).json(data);
+    } catch (e) {
+        res.status(e.statusCode || 503).json({ error: e.message, details: e.details });
+    }
+});
+
+app.get('/tiles/jobs/:id', async (req, res) => {
+    try {
+        const data = await adminFetch('/tiles/jobs/' + encodeURIComponent(req.params.id));
+        res.json(data);
+    } catch (e) {
+        res.status(e.statusCode || 503).json({ error: e.message });
     }
 });
 
@@ -464,36 +597,57 @@ function getRouteDistanceMeters(route) {
 }
 
 async function routeWithValhalla(locations, profile, directionsOptions) {
-    const status = await getLocalValhallaStatus();
-    if (!status.reachable || !status.tilesReady) {
-        const reason = !status.reachable
-            ? 'servizio di routing non raggiungibile'
-            : 'tile Valhalla mancanti o extract non caricato';
-        throw createRoutingError(
-            'VALHALLA_NOT_READY',
-            `Valhalla locale non pronto: ${reason}`,
-            503,
-            status
-        );
-    }
+    const useLocal = isLocalMode();
+    
+    if (useLocal) {
+        const status = await getLocalValhallaStatus();
+        if (!status.reachable || !status.tilesReady) {
+            const reason = !status.reachable
+                ? 'servizio di routing non raggiungibile'
+                : 'tile Valhalla mancanti o extract non caricato';
+            throw createRoutingError(
+                'VALHALLA_NOT_READY',
+                `Valhalla locale non pronto: ${reason}`,
+                503,
+                status
+            );
+        }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    const costing = profile === 'cycling' ? 'bicycle' : 'pedestrian';
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const costing = profile === 'cycling' ? 'bicycle' : 'pedestrian';
 
-    try {
-        const data = await requestValhallaRoute(locations, profile, directionsOptions, costing, controller.signal);
-        const route = normalizeValhallaRoute(data.response, locations, profile);
-        route.trip.summary.routing_backend = 'local-valhalla';
-        route.trip.summary.tiles_ready = true;
-        route.trip.summary.snap_mode = data.snapMode;
-        route.trip.summary.snap_radius_meters = data.snapRadiusMeters;
-        route.trip.summary.active_region = status.activeRegion || null;
-        route.trip.summary.last_built_at = status.lastBuiltAt || null;
-        route.trip.summary.valhalla_status = status.upstreamStatus || null;
-        return route;
-    } finally {
-        clearTimeout(timeout);
+        try {
+            const data = await requestValhallaRoute(locations, profile, directionsOptions, costing, controller.signal);
+            const route = normalizeValhallaRoute(data.response, locations, profile);
+            route.trip.summary.routing_backend = 'local-valhalla';
+            route.trip.summary.tiles_ready = true;
+            route.trip.summary.snap_mode = data.snapMode;
+            route.trip.summary.snap_radius_meters = data.snapRadiusMeters;
+            route.trip.summary.active_region = status.activeRegion || null;
+            route.trip.summary.last_built_at = status.lastBuiltAt || null;
+            route.trip.summary.valhalla_status = status.upstreamStatus || null;
+            return route;
+        } finally {
+            clearTimeout(timeout);
+        }
+    } else {
+        // Use online Valhalla
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const costing = profile === 'cycling' ? 'bicycle' : 'pedestrian';
+
+        try {
+            const data = await requestValhallaRoute(locations, profile, directionsOptions, costing, controller.signal);
+            const route = normalizeValhallaRoute(data.response, locations, profile);
+            route.trip.summary.routing_backend = 'online-valhalla';
+            route.trip.summary.tiles_ready = true;
+            route.trip.summary.snap_mode = data.snapMode;
+            route.trip.summary.snap_radius_meters = data.snapRadiusMeters;
+            return route;
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 }
 
@@ -538,7 +692,7 @@ async function fetchValhallaRoute(locations, profile, directionsOptions, costing
         minimum_reachability: snapOptions.minimumReachability
     }));
 
-    const response = await fetch(VALHALLA_API_URL, {
+    const response = await fetch(getValhallaApiUrl(), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -570,7 +724,18 @@ async function fetchValhallaRoute(locations, profile, directionsOptions, costing
     });
 
     if (!response.ok) {
-        throw new Error(`Valhalla responded with ${response.status}`);
+        let bodyText = '';
+        try { bodyText = await response.text(); } catch (_) {}
+        let valhallaMsg = '';
+        try {
+            const parsed = JSON.parse(bodyText);
+            valhallaMsg = parsed.error || parsed.error_code_message || '';
+        } catch (_) {}
+        console.error('Valhalla error', response.status, bodyText.slice(0, 500), 'request=', JSON.stringify({ locations: routeLocations, costing }));
+        const err = new Error(`Valhalla responded with ${response.status}${valhallaMsg ? ': ' + valhallaMsg : ''}`);
+        err.valhallaStatus = response.status;
+        err.valhallaBody = bodyText;
+        throw err;
     }
 
     const data = await response.json();

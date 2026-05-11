@@ -32,6 +32,7 @@ function setupMenuDropdowns() {
 
     const menuMaps = document.getElementById('menu-maps');
     const dropdownMaps = document.getElementById('dropdown-maps');
+    const dropdownSettings = document.getElementById('dropdown-settings');
     const menuSettings = document.getElementById('menu-settings');
     
     // File menu
@@ -68,12 +69,16 @@ function setupMenuDropdowns() {
         dropdownFile.classList.add('hidden');
         dropdownEdit.classList.add('hidden');
         dropdownView.classList.add('hidden');
+        dropdownSettings.classList.add('hidden');
     });
 
     menuSettings.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeAllDropdowns();
-        openSettingsModal();
+        dropdownSettings.classList.toggle('hidden');
+        dropdownFile.classList.add('hidden');
+        dropdownEdit.classList.add('hidden');
+        dropdownView.classList.add('hidden');
+        dropdownMaps.classList.add('hidden');
     });
     
     // Close dropdowns on outside click
@@ -86,6 +91,7 @@ function setupMenuDropdowns() {
         dropdownEdit.classList.add('hidden');
         dropdownView.classList.add('hidden');
         dropdownMaps.classList.add('hidden');
+        dropdownSettings.classList.add('hidden');
     }
     
     // File menu items
@@ -118,6 +124,16 @@ function setupMenuDropdowns() {
             event.preventDefault();
             UndoManager.redo();
         }
+    });
+    
+    // Settings menu items
+    document.getElementById('routing-engine-config').addEventListener('click', () => {
+        if (typeof showRoutingEngineDialog === 'function') {
+            showRoutingEngineDialog();
+        } else {
+            showToast('Modulo routing non caricato. Ricarica la pagina (Ctrl+Shift+R).', 'error');
+        }
+        closeAllDropdowns();
     });
     
     document.getElementById('open-settings-from-view').addEventListener('click', openSettingsModal);

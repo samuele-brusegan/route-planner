@@ -1,4 +1,4 @@
-const CACHE_NAME = 'route-planner-v8';
+const CACHE_NAME = 'route-planner-v11';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -16,6 +16,7 @@ const urlsToCache = [
     '/js/offline-maps.js',
     '/js/offline-maps-page.js',
     '/js/map-manager.js',
+    '/js/tile-mode.js',
     '/js/ui.js',
     '/manifest.json',
     'https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css',
