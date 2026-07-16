@@ -32,6 +32,7 @@ function setupMenuDropdowns() {
 
     const menuMaps = document.getElementById('menu-maps');
     const dropdownMaps = document.getElementById('dropdown-maps');
+    const dropdownSettings = document.getElementById('dropdown-settings');
     const menuSettings = document.getElementById('menu-settings');
     
     // File menu
@@ -68,12 +69,16 @@ function setupMenuDropdowns() {
         dropdownFile.classList.add('hidden');
         dropdownEdit.classList.add('hidden');
         dropdownView.classList.add('hidden');
+        dropdownSettings.classList.add('hidden');
     });
 
     menuSettings.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeAllDropdowns();
-        openSettingsModal();
+        dropdownSettings.classList.toggle('hidden');
+        dropdownFile.classList.add('hidden');
+        dropdownEdit.classList.add('hidden');
+        dropdownView.classList.add('hidden');
+        dropdownMaps.classList.add('hidden');
     });
     
     // Close dropdowns on outside click
@@ -86,6 +91,7 @@ function setupMenuDropdowns() {
         dropdownEdit.classList.add('hidden');
         dropdownView.classList.add('hidden');
         dropdownMaps.classList.add('hidden');
+        dropdownSettings.classList.add('hidden');
     }
     
     // File menu items
@@ -97,7 +103,38 @@ function setupMenuDropdowns() {
     document.getElementById('open-export-page').addEventListener('click', showExportPage);
     
     // Edit menu items
+    document.getElementById('undo').addEventListener('click', () => {
+        if (!UndoManager.undo()) showToast('Niente da annullare', 'info', 2000);
+    });
+    document.getElementById('redo').addEventListener('click', () => {
+        if (!UndoManager.redo()) showToast('Niente da ripetere', 'info', 2000);
+    });
     document.getElementById('clear-markers').addEventListener('click', clearAll);
+
+    // Keyboard shortcuts for undo/redo
+    document.addEventListener('keydown', (event) => {
+        const key = event.key.toLowerCase();
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && key === 'z') {
+            event.preventDefault();
+            UndoManager.undo();
+        } else if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'z') {
+            event.preventDefault();
+            UndoManager.redo();
+        } else if ((event.ctrlKey || event.metaKey) && key === 'y') {
+            event.preventDefault();
+            UndoManager.redo();
+        }
+    });
+    
+    // Settings menu items
+    document.getElementById('routing-engine-config').addEventListener('click', () => {
+        if (typeof showRoutingEngineDialog === 'function') {
+            showRoutingEngineDialog();
+        } else {
+            showToast('Modulo routing non caricato. Ricarica la pagina (Ctrl+Shift+R).', 'error');
+        }
+        closeAllDropdowns();
+    });
     
     document.getElementById('open-settings-from-view').addEventListener('click', openSettingsModal);
 
@@ -314,7 +351,7 @@ function setSwitchChecked(id, checked) {
 function setupButtons() {
     // Add marker button
     document.getElementById('add-marker-btn').addEventListener('click', () => {
-        alert('Clicca sulla mappa per aggiungere un punto');
+        showToast('Clicca sulla mappa per aggiungere un punto', 'info');
     });
     
     // Add marker type button
@@ -546,7 +583,7 @@ function showOfflineMapsModal() {
     document.getElementById('start-download').onclick = async () => {
         const regionId = document.getElementById('region-select').value;
         if (!regionId) {
-            alert('Seleziona una regione');
+            showToast('Seleziona una regione', 'warn');
             return;
         }
         
@@ -555,7 +592,7 @@ function showOfflineMapsModal() {
         const maxZoom = parseInt(document.getElementById('max-zoom').value);
         
         if (minZoom > maxZoom) {
-            alert('Lo zoom minimo deve essere inferiore al massimo');
+            showToast('Lo zoom minimo deve essere inferiore al massimo', 'warn');
             return;
         }
         
@@ -579,10 +616,10 @@ function showOfflineMapsModal() {
                 }
             );
             
-            alert(`Download completato! ${result.downloaded} tile scaricate su ${result.totalTiles}`);
+            showToast(`Download completato! ${result.downloaded} tile scaricate su ${result.totalTiles}`, 'success');
         } catch (error) {
             console.error('Download error:', error);
-            alert('Errore durante il download: ' + error.message);
+            showToast('Errore durante il download: ' + error.message, 'error');
         } finally {
             document.getElementById('download-progress').style.display = 'none';
             document.getElementById('start-download').disabled = false;

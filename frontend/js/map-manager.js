@@ -1,3 +1,8 @@
+// Fallback showToast for standalone pages without ui.js
+if (typeof showToast === 'undefined') {
+    window.showToast = function(message) { console.log('[Toast]', message); };
+}
+
 // Map Manager - Region download and offline mode management
 const EXPORT_API_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
 let availableRegions = [];
@@ -240,7 +245,7 @@ async function handleDeleteClick(e) {
         await loadRegions();
     } catch (error) {
         console.error('Delete region error:', error);
-        alert('Errore durante la cancellazione della regione');
+        showToast('Errore durante la cancellazione della regione', 'error');
     }
 }
 

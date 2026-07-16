@@ -87,7 +87,7 @@ function addCustomDirection(afterIndex) {
     document.getElementById('confirm-custom-direction').addEventListener('click', () => {
         const text = document.getElementById('custom-direction-input').value;
         if (!text) {
-            alert('Inserisci una descrizione');
+            showToast('Inserisci una descrizione', 'warn');
             return;
         }
         

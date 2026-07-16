@@ -49,6 +49,11 @@
         <div class="dropdown-item map-layer-option" data-map-layer="tracestrack">Tracestrack Topo</div>
     </div>
 
+    <!-- Settings Dropdown -->
+    <div id="dropdown-settings" class="dropdown hidden">
+        <div class="dropdown-item" id="routing-engine-config">Motore di Routing…</div>
+    </div>
+
     <!-- Map Container -->
     <div id="map"></div>
 
@@ -326,12 +331,12 @@
                 <option value="italy-south">Italia Sud</option>
                 <option value="italy-all">Italia Completa</option>
             </select>
-            <div>
-                <label>Zoom minimo:</label>
+            <div class="route-style-control">
+                <label for="min-zoom">Zoom minimo</label>
                 <input type="number" id="min-zoom" value="8" min="1" max="18">
             </div>
-            <div>
-                <label>Zoom massimo:</label>
+            <div class="route-style-control">
+                <label for="max-zoom">Zoom massimo</label>
                 <input type="number" id="max-zoom" value="12" min="1" max="18">
             </div>
             <div id="download-progress" style="display: none;">
@@ -353,6 +358,7 @@
     <script src="js/directions.js"></script>
     <script src="js/export.js?v=8"></script>
     <script src="js/offline-maps.js"></script>
+    <script src="js/tile-mode.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/app.js"></script>
     <script>

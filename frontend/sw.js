@@ -1,8 +1,9 @@
-const CACHE_NAME = 'route-planner-v9';
+const CACHE_NAME = 'route-planner-v12';
 const urlsToCache = [
     '/',
     '/index.html',
     '/offline-maps.html',
+    '/map-manager.html',
     '/css/style.css',
     '/js/app.js',
     '/js/map.js',
@@ -14,11 +15,14 @@ const urlsToCache = [
     '/js/export.js',
     '/js/offline-maps.js',
     '/js/offline-maps-page.js',
+    '/js/map-manager.js',
+    '/js/tile-mode.js',
     '/js/ui.js',
     '/manifest.json',
     'https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css',
     'https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js',
-    'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
+    'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+    'https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js'
 ];
 
 // Install event - cache resources

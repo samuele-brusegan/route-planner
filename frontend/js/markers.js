@@ -141,6 +141,7 @@ function editMarker(markerId) {
     document.getElementById('cancel-edit-marker').addEventListener('click', () => modal.remove());
     
     document.getElementById('confirm-edit-marker').addEventListener('click', () => {
+        UndoManager.push();
         marker.type = document.getElementById('edit-marker-type').value;
         marker.name = document.getElementById('edit-marker-name').value;
         
@@ -160,6 +161,7 @@ function editMarker(markerId) {
 // Delete marker
 function deleteMarker(markerId) {
     if (confirm('Sei sicuro di voler eliminare questo punto?')) {
+        UndoManager.push();
         AppState.markers = AppState.markers.filter(m => m.id !== markerId);
         
         // Update order
@@ -206,10 +208,11 @@ function addMarkerType() {
         const color = document.getElementById('new-type-color').value;
         
         if (!name) {
-            alert('Inserisci un nome per il tipo');
+            showToast('Inserisci un nome per il tipo', 'warn');
             return;
         }
         
+        UndoManager.push();
         const newType = {
             id: 'type_' + Date.now(),
             name: name,
@@ -248,6 +251,7 @@ function editMarkerType(typeId) {
     document.getElementById('cancel-edit-type').addEventListener('click', () => modal.remove());
     
     document.getElementById('confirm-edit-type').addEventListener('click', () => {
+        UndoManager.push();
         type.name = document.getElementById('edit-type-name').value;
         type.icon = document.getElementById('edit-type-icon').value || '📍';
         type.color = document.getElementById('edit-type-color').value;
@@ -267,11 +271,12 @@ function deleteMarkerType(typeId) {
     // Check if type is in use
     const inUse = AppState.markers.some(m => m.type === typeId);
     if (inUse) {
-        alert('Questo tipo è in uso. Non può essere eliminato.');
+        showToast('Questo tipo è in uso. Non può essere eliminato.', 'warn');
         return;
     }
     
     if (confirm(`Sei sicuro di voler eliminare "${type.name}"?`)) {
+        UndoManager.push();
         AppState.markerTypes = AppState.markerTypes.filter(t => t.id !== typeId);
         saveToLocalStorage();
         updateUI();
@@ -310,6 +315,9 @@ function handleDrop(e) {
     const toIndex = Number.isFinite(activeInsertSlot)
         ? activeInsertSlot
         : parseInt(this.dataset.index, 10);
+    if (fromIndex !== toIndex) {
+        UndoManager.push();
+    }
     moveMarker(fromIndex, toIndex);
     finalizeMarkerReorder();
 }
@@ -343,6 +351,9 @@ function handleInsertSlotDrop(e) {
 
     const fromIndex = parseInt(draggedItem.dataset.index, 10);
     const toIndex = parseInt(this.dataset.index, 10);
+    if (fromIndex !== toIndex) {
+        UndoManager.push();
+    }
     moveMarker(fromIndex, toIndex);
     finalizeMarkerReorder();
 }
@@ -366,7 +377,7 @@ function startMarkerInsertMode(index) {
     const slotLabel = Number(index) >= AppState.markers.length
         ? 'in coda'
         : `tra i punti ${Number(index) + 1} e ${Number(index) + 2}`;
-    alert(`Clicca sulla mappa per inserire un nuovo punto ${slotLabel}.`);
+    showToast(`Clicca sulla mappa per inserire un nuovo punto ${slotLabel}.`, 'info');
 }
 
 function finalizeMarkerReorder() {

@@ -71,22 +71,34 @@ async function updateElevationChart() {
     const labels = elevationData.map((_, i) => i);
     const elevations = elevationData.map(d => d.elevation);
     
-    // Add day separators
+    // Add day separators using actual route coordinates for positioning
     const nightMarkers = AppState.markers.filter(m => m.type === 'night');
     const annotations = [];
-    
-    nightMarkers.forEach((marker, index) => {
-        const markerIndex = AppState.markers.findIndex(m => m.id === marker.id);
-        // Find the corresponding point in the route
-        // This is a simplified approach
-        const routeIndex = Math.floor((markerIndex / AppState.markers.length) * elevationData.length);
+    const routeCoords = AppState.route.coordinates;
+
+    nightMarkers.forEach((marker) => {
+        let closestIdx = 0;
+        let closestDist = Infinity;
+        for (let i = 0; i < routeCoords.length; i++) {
+            const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
+            if (d < closestDist) {
+                closestDist = d;
+                closestIdx = i;
+            }
+        }
+        const routeIndex = Math.round(closestIdx * (elevationData.length / routeCoords.length));
         annotations.push({
             type: 'line',
             xMin: routeIndex,
             xMax: routeIndex,
             borderColor: '#e74c3c',
             borderWidth: 2,
-            borderDash: [5, 5]
+            borderDash: [5, 5],
+            label: {
+                display: true,
+                content: marker.name,
+                position: 'start'
+            }
         });
     });
     
@@ -97,12 +109,10 @@ async function updateElevationChart() {
     elevationChart.data.labels = labels;
     elevationChart.data.datasets[0].data = elevations;
     
-    // Add annotations if Chart.js annotation plugin is available
-    if (window.ChartAnnotation) {
-        elevationChart.options.plugins.annotation = {
-            annotations: annotations
-        };
-    }
+    // Add annotations (plugin loaded via CDN, self-registers with Chart.js)
+    elevationChart.options.plugins.annotation = {
+        annotations: annotations
+    };
     
     elevationChart.update();
 }

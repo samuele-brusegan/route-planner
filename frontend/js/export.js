@@ -1,5 +1,5 @@
 // Export functionality
-const EXPORT_API_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
+const EXPORT_API_URL = window.EXPORT_API_URL || `${window.location.protocol}//${window.location.hostname}:3001`;
 
 // Export GPX
 async function exportGPX(splitByDays = false) {
