@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +7,104 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4a90a4">
+    <meta name="theme-color" content="#0f172a">
     <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <!-- Standard Menu Bar -->
-    <div id="menu-bar">
-        <div class="menu-item" id="menu-file">File</div>
-        <div class="menu-item" id="menu-edit">Modifica</div>
-        <div class="menu-item" id="menu-view">Visualizza</div>
-        <div class="menu-item" id="menu-maps">Mappe</div>
-        <div class="menu-item" id="menu-settings">Impostazioni</div>
+    <!-- Top Bar -->
+    <div id="top-bar">
+        <div class="top-bar-left">
+            <div class="app-brand">
+                <svg class="app-brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 19c0-1.5 1-3 3-3s3 1.5 3 3-1 3-3 3-3-1.5-3-3z"/>
+                    <path d="M9 16V8l9-3v8"/>
+                    <circle cx="18" cy="13" r="3"/>
+                </svg>
+                <span class="app-brand-text">Route Planner</span>
+            </div>
+            <div class="menu-divider-v"></div>
+            <div id="menu-bar">
+                <div class="menu-item" id="menu-file">File</div>
+                <div class="menu-item" id="menu-edit">Modifica</div>
+                <div class="menu-item" id="menu-view">Visualizza</div>
+                <div class="menu-item" id="menu-maps">Mappe</div>
+                <div class="menu-item" id="menu-settings">Impostazioni</div>
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <button class="icon-btn" id="theme-toggle" title="Cambia tema">
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Access Toolbar -->
+    <div id="quick-toolbar">
+        <button class="tool-btn" data-panel-toggle="left-panel" title="Punti percorso">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 2a8 8 0 0 0-8 8c0 4 8 12 8 12s8-8 8-12a8 8 0 0 0-8-8z"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-panel-toggle="right-panel" title="Tipi segnaposti">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-panel-toggle="bottom-panel" title="Statistiche">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"/>
+                <line x1="12" y1="20" x2="12" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-panel-toggle="top-panel" title="Profilo altimetrico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 17 9 11 13 15 21 7"/>
+                <polyline points="14 7 21 7 21 14"/>
+            </svg>
+        </button>
+        <button class="tool-btn" data-panel-toggle="directions-panel" title="Indicazioni">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+        </button>
+        <div class="tool-divider"></div>
+        <button class="tool-btn" id="toolbar-add-marker" title="Aggiungi punto">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 2a8 8 0 0 0-8 8c0 4 8 12 8 12s8-8 8-12a8 8 0 0 0-8-8z"/>
+            </svg>
+        </button>
+        <button class="tool-btn" id="toolbar-settings" title="Impostazioni">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+        </button>
+        <button class="tool-btn" id="toolbar-export" title="Esporta">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+        </button>
     </div>
 
     <!-- File Dropdown -->
@@ -60,77 +146,159 @@
     <!-- Left Panel - Route Management -->
     <div id="left-panel" class="panel left-panel">
         <div class="panel-header">
-            <h3>Route</h3>
-            <button class="close-btn" data-panel="left-panel">×</button>
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="10" r="3"/>
+                    <path d="M12 2a8 8 0 0 0-8 8c0 4 8 12 8 12s8-8 8-12a8 8 0 0 0-8-8z"/>
+                </svg>
+                <h3>Route</h3>
+            </div>
+            <button class="close-btn" data-panel="left-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="panel-content">
-            <div class="route-style-control">
-                <label for="route-color-input">Colore percorso</label>
-                <input type="color" id="route-color-input" value="#4a90a4">
-            </div>
-            <div class="route-style-control stacked">
-                <label for="routing-engine-select">Motore routing</label>
-                <select id="routing-engine-select">
-                    <option value="valhalla">Valhalla</option>
-                    <option value="osrm">OSRM</option>
-                    <option value="graphhopper">GraphHopper</option>
-                </select>
-            </div>
-            <div class="route-style-control stacked" id="valhalla-source-control">
-                <label for="valhalla-source-select">Tile Valhalla</label>
-                <select id="valhalla-source-select">
-                    <option value="local">Locali</option>
-                    <option value="online">Online</option>
-                </select>
-            </div>
-            <div class="route-style-control stacked">
-                <label for="routing-profile-select">Modalità</label>
-                <select id="routing-profile-select">
-                    <option value="walking">A piedi</option>
-                    <option value="cycling">Bici</option>
-                </select>
+            <div class="route-controls-group">
+                <div class="route-style-control">
+                    <label for="route-color-input">Colore percorso</label>
+                    <input type="color" id="route-color-input" value="#4a90a4">
+                </div>
+                <div class="route-style-control stacked">
+                    <label for="routing-engine-select">Motore routing</label>
+                    <select id="routing-engine-select">
+                        <option value="valhalla">Valhalla</option>
+                        <option value="osrm">OSRM</option>
+                        <option value="graphhopper">GraphHopper</option>
+                    </select>
+                </div>
+                <div class="route-style-control stacked" id="valhalla-source-control">
+                    <label for="valhalla-source-select">Tile Valhalla</label>
+                    <select id="valhalla-source-select">
+                        <option value="local">Locali</option>
+                        <option value="online">Online</option>
+                    </select>
+                </div>
+                <div class="route-style-control stacked">
+                    <label for="routing-profile-select">Modalità</label>
+                    <select id="routing-profile-select">
+                        <option value="walking">A piedi</option>
+                        <option value="cycling">Bici</option>
+                    </select>
+                </div>
             </div>
             <div id="routing-diagnostics" class="routing-diagnostics hidden"></div>
+            <div class="markers-section-label">Punti</div>
             <div id="markers-list"></div>
-            <button id="add-marker-btn" class="btn primary">Aggiungi Punto</button>
+            <button id="add-marker-btn" class="btn primary">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Aggiungi Punto
+            </button>
         </div>
     </div>
 
     <!-- Right Panel - Marker Types -->
     <div id="right-panel" class="panel right-panel">
         <div class="panel-header">
-            <h3>Tipi Segnaposti</h3>
-            <button class="close-btn" data-panel="right-panel">×</button>
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="16"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                <h3>Tipi Segnaposti</h3>
+            </div>
+            <button class="close-btn" data-panel="right-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="panel-content">
             <div id="marker-types-list"></div>
-            <button id="add-marker-type-btn" class="btn primary">Nuovo Tipo</button>
+            <button id="add-marker-type-btn" class="btn primary">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Nuovo Tipo
+            </button>
         </div>
     </div>
 
     <!-- Bottom Panel - Statistics -->
     <div id="bottom-panel" class="panel bottom-panel">
         <div class="panel-header">
-            <h3>Statistiche</h3>
-            <button class="close-btn" data-panel="bottom-panel">×</button>
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                <h3>Statistiche</h3>
+            </div>
+            <button class="close-btn" data-panel="bottom-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="panel-content">
             <div id="stats-container">
                 <div class="stat-box">
-                    <span class="stat-label">Lunghezza Totale:</span>
-                    <span class="stat-value" id="total-distance">0 km</span>
+                    <div class="stat-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Lunghezza Totale</span>
+                        <span class="stat-value" id="total-distance">0 km</span>
+                    </div>
                 </div>
                 <div class="stat-box">
-                    <span class="stat-label">Dislivello Positivo:</span>
-                    <span class="stat-value" id="total-ascent">0 m</span>
+                    <div class="stat-icon stat-icon-up">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                            <polyline points="17 6 23 6 23 12"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Dislivello Positivo</span>
+                        <span class="stat-value" id="total-ascent">0 m</span>
+                    </div>
                 </div>
                 <div class="stat-box">
-                    <span class="stat-label">Dislivello Negativo:</span>
-                    <span class="stat-value" id="total-descent">0 m</span>
+                    <div class="stat-icon stat-icon-down">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+                            <polyline points="17 18 23 18 23 12"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Dislivello Negativo</span>
+                        <span class="stat-value" id="total-descent">0 m</span>
+                    </div>
                 </div>
                 <div class="stat-box">
-                    <span class="stat-label">Tempo Stimato:</span>
-                    <span class="stat-value" id="total-time">0h 0m</span>
+                    <div class="stat-icon stat-icon-time">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-label">Tempo Stimato</span>
+                        <span class="stat-value" id="total-time">0h 0m</span>
+                    </div>
                 </div>
             </div>
             <div id="daily-stats"></div>
@@ -140,32 +308,77 @@
     <!-- Top Panel - Chart -->
     <div id="top-panel" class="panel top-panel">
         <div class="panel-header">
-            <h3>Profilo Altimetrico</h3>
-            <button class="close-btn" data-panel="top-panel">×</button>
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 17 9 11 13 15 21 7"/>
+                    <polyline points="14 7 21 7 21 14"/>
+                </svg>
+                <h3>Profilo Altimetrico</h3>
+            </div>
+            <button class="close-btn" data-panel="top-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="panel-content">
             <canvas id="elevation-chart"></canvas>
-            <button id="download-chart" class="btn secondary">Scarica Grafico</button>
+            <button id="download-chart" class="btn secondary">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Scarica Grafico
+            </button>
         </div>
     </div>
 
     <!-- Directions Panel -->
     <div id="directions-panel" class="panel directions-panel">
         <div class="panel-header">
-            <h3>Indicazioni</h3>
-            <button class="close-btn" data-panel="directions-panel">×</button>
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+                </svg>
+                <h3>Indicazioni</h3>
+            </div>
+            <button class="close-btn" data-panel="directions-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="panel-content">
             <div id="directions-list"></div>
-            <button id="add-direction-note-btn" class="btn primary">Aggiungi Nota</button>
+            <button id="add-direction-note-btn" class="btn primary">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Aggiungi Nota
+            </button>
         </div>
     </div>
 
     <!-- OSM Inspector Panel -->
     <div id="osm-inspector-panel" class="panel osm-inspector-panel hidden" style="overflow-y: auto;">
         <div class="panel-header">
-            <h3>Inspector OSM</h3>
-            <button class="close-btn" data-panel="osm-inspector-panel">×</button>
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <h3>Inspector OSM</h3>
+            </div>
+            <button class="close-btn" data-panel="osm-inspector-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
         </div>
         <div class="panel-content">
             <div id="osm-inspector-empty" class="osm-inspector-empty">

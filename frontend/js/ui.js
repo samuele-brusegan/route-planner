@@ -2,12 +2,16 @@
 
 // Initialize UI
 function initUI() {
+    // Theme
+    initTheme();
+
     // Menu dropdowns
     setupMenuDropdowns();
     
     // Panel toggles
     setupPanelToggles();
     applySavedPanelVisibility();
+    setupQuickToolbar();
     
     // Buttons
     setupButtons();
@@ -17,6 +21,56 @@ function initUI() {
     
     // Initialize chart
     initElevationChart();
+}
+
+// Theme management
+function initTheme() {
+    const savedTheme = localStorage.getItem('routePlannerTheme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('routePlannerTheme', next);
+        });
+    }
+}
+
+// Quick toolbar panel toggles
+function setupQuickToolbar() {
+    document.querySelectorAll('[data-panel-toggle]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const panelId = btn.dataset.panelToggle;
+            togglePanelVisibility(panelId);
+        });
+    });
+
+    const addMarkerBtn = document.getElementById('toolbar-add-marker');
+    if (addMarkerBtn) {
+        addMarkerBtn.addEventListener('click', () => {
+            showToast('Clicca sulla mappa per aggiungere un punto', 'info');
+        });
+    }
+
+    const settingsBtn = document.getElementById('toolbar-settings');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', openSettingsModal);
+    }
+
+    const exportBtn = document.getElementById('toolbar-export');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', showExportPage);
+    }
+}
+
+// Position a dropdown under its menu item
+function positionDropdown(menuItem, dropdown) {
+    const rect = menuItem.getBoundingClientRect();
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = (rect.bottom - 2) + 'px';
 }
 
 // Setup menu dropdowns
@@ -38,47 +92,55 @@ function setupMenuDropdowns() {
     // File menu
     menuFile.addEventListener('click', (e) => {
         e.stopPropagation();
-        dropdownFile.classList.toggle('hidden');
-        dropdownEdit.classList.add('hidden');
-        dropdownView.classList.add('hidden');
-        dropdownMaps.classList.add('hidden');
+        const show = dropdownFile.classList.contains('hidden');
+        closeAllDropdowns();
+        if (show) {
+            dropdownFile.classList.remove('hidden');
+            positionDropdown(menuFile, dropdownFile);
+        }
     });
     
     // Edit menu
     menuEdit.addEventListener('click', (e) => {
         e.stopPropagation();
-        dropdownEdit.classList.toggle('hidden');
-        dropdownFile.classList.add('hidden');
-        dropdownView.classList.add('hidden');
-        dropdownMaps.classList.add('hidden');
+        const show = dropdownEdit.classList.contains('hidden');
+        closeAllDropdowns();
+        if (show) {
+            dropdownEdit.classList.remove('hidden');
+            positionDropdown(menuEdit, dropdownEdit);
+        }
     });
     
     // View menu
     menuView.addEventListener('click', (e) => {
         e.stopPropagation();
-        dropdownView.classList.toggle('hidden');
-        dropdownFile.classList.add('hidden');
-        dropdownEdit.classList.add('hidden');
-        dropdownMaps.classList.add('hidden');
+        const show = dropdownView.classList.contains('hidden');
+        closeAllDropdowns();
+        if (show) {
+            dropdownView.classList.remove('hidden');
+            positionDropdown(menuView, dropdownView);
+        }
     });
 
     // Maps menu
     menuMaps.addEventListener('click', (e) => {
         e.stopPropagation();
-        dropdownMaps.classList.toggle('hidden');
-        dropdownFile.classList.add('hidden');
-        dropdownEdit.classList.add('hidden');
-        dropdownView.classList.add('hidden');
-        dropdownSettings.classList.add('hidden');
+        const show = dropdownMaps.classList.contains('hidden');
+        closeAllDropdowns();
+        if (show) {
+            dropdownMaps.classList.remove('hidden');
+            positionDropdown(menuMaps, dropdownMaps);
+        }
     });
 
     menuSettings.addEventListener('click', (e) => {
         e.stopPropagation();
-        dropdownSettings.classList.toggle('hidden');
-        dropdownFile.classList.add('hidden');
-        dropdownEdit.classList.add('hidden');
-        dropdownView.classList.add('hidden');
-        dropdownMaps.classList.add('hidden');
+        const show = dropdownSettings.classList.contains('hidden');
+        closeAllDropdowns();
+        if (show) {
+            dropdownSettings.classList.remove('hidden');
+            positionDropdown(menuSettings, dropdownSettings);
+        }
     });
     
     // Close dropdowns on outside click
@@ -238,6 +300,7 @@ function applySavedPanelVisibility() {
     });
 
     syncSettingsSwitches();
+    syncQuickToolbar();
 }
 
 function togglePanelVisibility(panelId) {
@@ -278,6 +341,14 @@ function setPanelVisibility(panelId, visible, persist = true) {
     }
 
     syncSettingsSwitches();
+    syncQuickToolbar();
+}
+
+function syncQuickToolbar() {
+    document.querySelectorAll('[data-panel-toggle]').forEach(btn => {
+        const panelId = btn.dataset.panelToggle;
+        btn.classList.toggle('active', isPanelVisible(panelId));
+    });
 }
 
 function syncOsmInspectorToggleLabel() {
