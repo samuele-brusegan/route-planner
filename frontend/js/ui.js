@@ -94,7 +94,7 @@ function setupMenuDropdowns() {
         document.getElementById('file-input').click();
     });
     document.getElementById('export-json').addEventListener('click', exportJSON);
-    document.getElementById('export-page').addEventListener('click', showExportPage);
+    document.getElementById('open-export-page').addEventListener('click', showExportPage);
     
     // Edit menu items
     document.getElementById('clear-markers').addEventListener('click', clearAll);
@@ -330,11 +330,21 @@ function setupButtons() {
 
     const routingEngineSelect = document.getElementById('routing-engine-select');
     const routingProfileSelect = document.getElementById('routing-profile-select');
+    const valhallaSourceSelect = document.getElementById('valhalla-source-select');
 
     routingEngineSelect.addEventListener('change', () => {
         AppState.routingEngine = routingEngineSelect.value;
+        syncValhallaSourceControl();
         saveToLocalStorage();
         if (AppState.markers.length >= 2) {
+            calculateRoute();
+        }
+    });
+
+    valhallaSourceSelect.addEventListener('change', () => {
+        AppState.valhallaSource = valhallaSourceSelect.value;
+        saveToLocalStorage();
+        if (AppState.routingEngine === 'valhalla' && AppState.markers.length >= 2) {
             calculateRoute();
         }
     });
@@ -371,6 +381,7 @@ function updateRouteStyleControls() {
 function updateRoutingControls() {
     const routingEngineSelect = document.getElementById('routing-engine-select');
     const routingProfileSelect = document.getElementById('routing-profile-select');
+    const valhallaSourceSelect = document.getElementById('valhalla-source-select');
 
     if (routingEngineSelect) {
         routingEngineSelect.value = AppState.routingEngine || 'valhalla';
@@ -379,6 +390,19 @@ function updateRoutingControls() {
     if (routingProfileSelect) {
         routingProfileSelect.value = AppState.routingProfile || 'walking';
     }
+
+    if (valhallaSourceSelect) {
+        valhallaSourceSelect.value = AppState.valhallaSource || 'local';
+    }
+
+    syncValhallaSourceControl();
+}
+
+function syncValhallaSourceControl() {
+    const control = document.getElementById('valhalla-source-control');
+    if (!control) return;
+
+    control.classList.toggle('hidden', AppState.routingEngine !== 'valhalla');
 }
 
 function updateRoutingDiagnostics() {
@@ -408,7 +432,13 @@ function updateRoutingDiagnostics() {
             summaryBits.push(`Backend: ${escapeHtml(route.routingBackend)}`);
         }
 
-        summaryBits.push(route.localGraphReady ? 'Grafo locale: pronto' : 'Grafo locale: non verificato');
+        if (route.valhallaSource) {
+            summaryBits.push(`Tile Valhalla: ${route.valhallaSource === 'online' ? 'online' : 'locali'}`);
+        }
+
+        if (route.valhallaSource !== 'online') {
+            summaryBits.push(route.localGraphReady ? 'Grafo locale: pronto' : 'Grafo locale: non verificato');
+        }
 
         if (route.activeRegion) {
             summaryBits.push(`Regione attiva: ${escapeHtml(route.activeRegion)}`);

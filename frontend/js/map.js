@@ -18,19 +18,23 @@ let mapModeChannel = null;
 const BASE_MAPS = {
     opentopo: {
         url: 'https://{a-c}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        attributions: '© OpenStreetMap contributors, SRTM | © OpenTopoMap'
+        attributions: '© OpenStreetMap contributors, SRTM | © OpenTopoMap',
+        crossOrigin: 'anonymous'
     },
     osm: {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attributions: '© OpenStreetMap contributors'
+        attributions: '© OpenStreetMap contributors',
+        crossOrigin: 'anonymous'
     },
     cyclosm: {
         url: 'https://{a-c}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
-        attributions: '© OpenStreetMap contributors | CyclOSM'
+        attributions: '© OpenStreetMap contributors | CyclOSM',
+        crossOrigin: 'anonymous'
     },
     tracestrack: {
         url: 'https://tile.tracestrack.com/topo_it/{z}/{x}/{y}.png?key={key}',
-        attributions: '© Tracestrack | © OpenStreetMap contributors | SRTM, GEBCO, NASADEM'
+        attributions: '© Tracestrack | © OpenStreetMap contributors | SRTM, GEBCO, NASADEM',
+        crossOrigin: 'anonymous'
     }
 };
 
@@ -57,7 +61,8 @@ async function initMap() {
     trailOverlayLayer = new ol.layer.Tile({
         source: new ol.source.XYZ({
             url: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
-            attributions: '© OpenStreetMap contributors | © waymarkedtrails.org'
+            attributions: '© OpenStreetMap contributors | © waymarkedtrails.org',
+            crossOrigin: 'anonymous'
         }),
         opacity: 0.9,
         visible: trailsOverlayVisible
@@ -67,7 +72,8 @@ async function initMap() {
     contourOverlayLayer = new ol.layer.Tile({
         source: new ol.source.XYZ({
             url: 'https://tile.osm.ch/contours/{z}/{x}/{y}.png',
-            attributions: 'ASTER GDEM, EarthEnv-DEM90, CDEM | © Swiss OpenStreetMap Association'
+            attributions: 'ASTER GDEM, EarthEnv-DEM90, CDEM | © Swiss OpenStreetMap Association',
+            crossOrigin: 'anonymous'
         }),
         opacity: 0.75,
         visible: contoursOverlayVisible
@@ -164,7 +170,8 @@ function createBaseMapSource(mapId) {
 
     return new ol.source.XYZ({
         url: tileUrl,
-        attributions: config.attributions
+        attributions: config.attributions,
+        crossOrigin: config.crossOrigin || 'anonymous'
     });
 }
 
@@ -940,8 +947,71 @@ function clearRoute() {
 
 // Export map as image
 async function exportMapAsImage(format = 'png') {
-    const mapCanvas = document.querySelector('#map canvas');
-    if (!mapCanvas) return null;
-    
-    return mapCanvas.toDataURL(`image/${format}`);
+    if (!map) return null;
+
+    return new Promise((resolve, reject) => {
+        map.once('rendercomplete', () => {
+            try {
+                const size = map.getSize();
+                if (!size || size[0] === 0 || size[1] === 0) {
+                    resolve(null);
+                    return;
+                }
+
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = size[0];
+                exportCanvas.height = size[1];
+                const context = exportCanvas.getContext('2d');
+                let skippedLayers = 0;
+
+                document.querySelectorAll('#map .ol-layer canvas, #map canvas.ol-layer').forEach(canvas => {
+                    if (canvas.width === 0 || canvas.height === 0 || canvas.style.display === 'none') {
+                        return;
+                    }
+
+                    if (!isCanvasReadable(canvas)) {
+                        skippedLayers += 1;
+                        console.warn('Map export skipped a canvas layer because it is blocked by CORS.');
+                        return;
+                    }
+
+                    const opacity = canvas.parentNode?.style?.opacity || canvas.style.opacity;
+                    context.globalAlpha = opacity === '' ? 1 : Number(opacity);
+
+                    const transform = canvas.style.transform;
+                    if (transform && transform.startsWith('matrix(')) {
+                        const matrix = transform
+                            .match(/^matrix\((.+)\)$/)[1]
+                            .split(',')
+                            .map(Number);
+                        context.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+                    } else {
+                        context.setTransform(1, 0, 0, 1, 0, 0);
+                    }
+
+                    context.drawImage(canvas, 0, 0);
+                });
+
+                context.setTransform(1, 0, 0, 1, 0, 0);
+                context.globalAlpha = 1;
+                if (skippedLayers > 0 && typeof showToast === 'function') {
+                    showToast(`${skippedLayers} layer mappa non esportato per restrizioni CORS.`, 'warning');
+                }
+                resolve(exportCanvas.toDataURL(`image/${format}`));
+            } catch (error) {
+                reject(error);
+            }
+        });
+
+        map.renderSync();
+    });
+}
+
+function isCanvasReadable(canvas) {
+    try {
+        canvas.getContext('2d').getImageData(0, 0, 1, 1);
+        return true;
+    } catch (error) {
+        return false;
+    }
 }

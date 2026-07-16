@@ -136,7 +136,7 @@
         "use_paths_factor": 1.0
       },
       "speed_factor": 1.0,
-      "max_hiking_difficulty": 1,
+      "max_hiking_difficulty": 6,
       "exclude_polygons": []
     },
     "bicycle": {

@@ -3,6 +3,8 @@ services:
     build: ./frontend
     ports:
       - "8083:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
     depends_on:
       - routing
       - export
@@ -15,6 +17,7 @@ services:
       - "8002:8002"
     environment:
       - VALHALLA_API_URL=${VALHALLA_API_URL:-http://valhalla:8002/route}
+      - VALHALLA_ONLINE_API_URL=${VALHALLA_ONLINE_API_URL:-https://valhalla1.openstreetmap.de/route}
       - VALHALLA_STATUS_URL=${VALHALLA_STATUS_URL:-http://valhalla:8002/status}
       - VALHALLA_TILE_DIR=${VALHALLA_TILE_DIR:-/data/valhalla_tiles}
       - VALHALLA_TILE_EXTRACT=${VALHALLA_TILE_EXTRACT:-/data/valhalla_tiles.tar}
@@ -23,6 +26,7 @@ services:
       - GRAPHHOPPER_API_KEY=${GRAPHHOPPER_API_KEY:-}
       - SNAP_RADIUS_METERS=${SNAP_RADIUS_METERS:-18}
       - RELAXED_SNAP_RADIUS_METERS=${RELAXED_SNAP_RADIUS_METERS:-55}
+      - MAX_HIKING_DIFFICULTY=${MAX_HIKING_DIFFICULTY:-6}
     volumes:
       - ./data:/data
     networks:

@@ -23,6 +23,7 @@ async function calculateRoute() {
                 locations: locations,
                 engine: AppState.routingEngine,
                 profile: AppState.routingProfile,
+                valhalla_source: AppState.valhallaSource,
                 directions_options: {
                     language: 'it'
                 }
@@ -48,6 +49,7 @@ async function calculateRoute() {
             engine: data.trip.summary.engine || AppState.routingEngine,
             profile: data.trip.summary.profile || AppState.routingProfile,
             routingBackend: data.trip.summary.routing_backend || 'unknown',
+            valhallaSource: data.trip.summary.valhalla_source || AppState.valhallaSource,
             localGraphReady: Boolean(data.trip.summary.tiles_ready),
             activeRegion: data.trip.summary.active_region || null,
             lastBuiltAt: data.trip.summary.last_built_at || null,

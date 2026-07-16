@@ -20,6 +20,7 @@ const AppState = {
 AppState.routeColor = '#4a90a4';
 AppState.routingEngine = 'valhalla';
 AppState.routingProfile = 'walking';
+AppState.valhallaSource = 'local';
 AppState.showRoutingDebug = false;
 AppState.showOsmGraph = false;
 AppState.showOsmInspector = false;
@@ -44,6 +45,7 @@ function saveToLocalStorage() {
         routeColor: AppState.routeColor,
         routingEngine: AppState.routingEngine,
         routingProfile: AppState.routingProfile,
+        valhallaSource: AppState.valhallaSource,
         showRoutingDebug: AppState.showRoutingDebug,
         showOsmGraph: AppState.showOsmGraph,
         showOsmInspector: AppState.showOsmInspector,
@@ -67,7 +69,8 @@ function loadPanelVisibilityFromLocalStorage() {
 function showToast(message, type = 'info', durationMs = 4500) {
     const container = getToastContainer();
     const toast = document.createElement('div');
-    const safeType = ['info', 'warn', 'error', 'success'].includes(type) ? type : 'info';
+    const normalizedType = type === 'warning' ? 'warn' : type;
+    const safeType = ['info', 'warn', 'error', 'fatal', 'success'].includes(normalizedType) ? normalizedType : 'info';
 
     toast.className = `toast toast-${safeType}`;
     toast.textContent = message;
@@ -109,6 +112,7 @@ async function loadFromLocalStorage() {
         AppState.routeColor = parsed.routeColor || AppState.routeColor;
         AppState.routingEngine = parsed.routingEngine || AppState.routingEngine;
         AppState.routingProfile = parsed.routingProfile || AppState.routingProfile;
+        AppState.valhallaSource = parsed.valhallaSource || AppState.valhallaSource;
         AppState.showRoutingDebug = parsed.showRoutingDebug || false;
         AppState.showOsmGraph = parsed.showOsmGraph || false;
         AppState.showOsmInspector = parsed.showOsmInspector || false;
@@ -175,6 +179,7 @@ function exportJSON() {
         routeColor: AppState.routeColor,
         routingEngine: AppState.routingEngine,
         routingProfile: AppState.routingProfile,
+        valhallaSource: AppState.valhallaSource,
         showRoutingDebug: AppState.showRoutingDebug,
         showOsmGraph: AppState.showOsmGraph,
         showOsmInspector: AppState.showOsmInspector,
@@ -215,6 +220,7 @@ function importJSON(file) {
             AppState.routeColor = data.routeColor || AppState.routeColor;
             AppState.routingEngine = data.routingEngine || AppState.routingEngine;
             AppState.routingProfile = data.routingProfile || AppState.routingProfile;
+            AppState.valhallaSource = data.valhallaSource || AppState.valhallaSource;
             AppState.showRoutingDebug = data.showRoutingDebug || false;
             AppState.showOsmGraph = data.showOsmGraph || false;
             AppState.showOsmInspector = data.showOsmInspector || false;

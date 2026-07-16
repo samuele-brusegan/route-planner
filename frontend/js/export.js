@@ -2,97 +2,267 @@
 const EXPORT_API_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
 
 // Export GPX
-function exportGPX(splitByDays = false) {
+async function exportGPX(splitByDays = false) {
     if (!AppState.route || AppState.markers.length < 2) {
-        alert('Nessuna route da esportare');
+        showExportToast('Nessuna route da esportare.', 'warning');
         return;
     }
-    
-    let gpxContent = '';
-    
-    if (splitByDays) {
-        // Export separate GPX for each day
-        const nightMarkers = AppState.markers.filter(m => m.type === 'night');
-        
-        if (nightMarkers.length === 0) {
-            // Single day
-            gpxContent = generateGPXContent(AppState.route, AppState.markers, 'Giorno 1');
-            downloadGPX(gpxContent, `route-giorno-1.gpx`);
-        } else {
-            // Multiple days
-            nightMarkers.forEach((nightMarker, index) => {
-                const nightIndex = AppState.markers.findIndex(m => m.id === nightMarker.id);
-                const dayMarkers = AppState.markers.slice(0, nightIndex + 1);
-                const dayRoute = extractRouteSegment(0, nightIndex);
-                
-                const dayGPX = generateGPXContent(dayRoute, dayMarkers, `Giorno ${index + 1}`);
-                downloadGPX(dayGPX, `route-giorno-${index + 1}.gpx`);
-            });
-            
-            // Add remaining route as last day
-            const startIndex = AppState.markers.findIndex(m => m.id === nightMarkers[nightMarkers.length - 1].id);
-            if (startIndex < AppState.markers.length - 1) {
-                const dayMarkers = AppState.markers.slice(startIndex);
-                const dayRoute = extractRouteSegment(startIndex, AppState.markers.length - 1);
-                
-                const dayGPX = generateGPXContent(dayRoute, dayMarkers, `Giorno ${nightMarkers.length + 1}`);
-                downloadGPX(dayGPX, `route-giorno-${nightMarkers.length + 1}.gpx`);
+
+    try {
+        if (splitByDays) {
+            const daySegments = buildNightSplitSegments();
+            warnIfSplitLooksInvalid(daySegments);
+
+            for (const segment of daySegments) {
+                const dayGPX = await generateGPXContent(segment.route, segment.markers, segment.name);
+                downloadGPX(dayGPX, `route-giorno-${segment.day}.gpx`);
             }
+            showExportToast(`Esportati ${daySegments.length} file GPX per giorni.`, 'info');
+            return;
         }
-    } else {
-        // Export full route
-        gpxContent = generateGPXContent(AppState.route, AppState.markers, 'Route Completa');
+
+        const gpxContent = await generateGPXContent(AppState.route, AppState.markers, 'Route Completa');
         downloadGPX(gpxContent, 'route-completa.gpx');
+        showExportToast('GPX completo esportato.', 'info');
+    } catch (error) {
+        console.error('GPX export error:', error);
+        showExportToast(error.message || 'Errore durante esportazione GPX.', 'fatal');
     }
 }
 
 // Generate GPX content
-function generateGPXContent(route, markers, name) {
+async function generateGPXContent(route, markers, name) {
     const date = new Date().toISOString();
-    
+    const coordinates = Array.isArray(route?.coordinates) ? route.coordinates : [];
+    const elevationData = await getElevationData(coordinates);
+
     let gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="Route Planner"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
-    <name>${name}</name>
+    <name>${escapeXml(name)}</name>
     <time>${date}</time>
   </metadata>
   
   <trk>
-    <name>${name}</name>
+    <name>${escapeXml(name)}</name>
     <trkseg>
 `;
-    
-    if (route && route.coordinates) {
-        route.coordinates.forEach(coord => {
-            gpx += `      <trkpt lat="${coord[1]}" lon="${coord[0]}"></trkpt>\n`;
-        });
-    }
-    
+
+    coordinates.forEach((coord, index) => {
+        const elevation = elevationData[index]?.elevation;
+        if (Number.isFinite(Number(elevation))) {
+            gpx += `      <trkpt lat="${formatCoordinate(coord[1])}" lon="${formatCoordinate(coord[0])}">
+        <ele>${Math.round(elevation)}</ele>
+      </trkpt>\n`;
+        } else {
+            gpx += `      <trkpt lat="${formatCoordinate(coord[1])}" lon="${formatCoordinate(coord[0])}"></trkpt>\n`;
+        }
+    });
+
     gpx += `    </trkseg>
   </trk>
-  
-  <wpt>
 `;
-    
+
     markers.forEach(marker => {
         const markerType = AppState.markerTypes.find(t => t.id === marker.type);
-        gpx += `    <wpt lat="${marker.lat}" lon="${marker.lon}">
-      <name>${marker.name}</name>
-      <type>${markerType.name}</type>
-    </wpt>\n`;
+        const markerTypeName = markerType?.name || marker.type || 'Punto';
+        const markerElevation = findNearestElevation(marker, coordinates, elevationData);
+        gpx += `  <wpt lat="${formatCoordinate(marker.lat)}" lon="${formatCoordinate(marker.lon)}">
+    <name>${escapeXml(marker.name || markerTypeName)}</name>
+${Number.isFinite(Number(markerElevation)) ? `    <ele>${Math.round(markerElevation)}</ele>\n` : ''}    <type>${escapeXml(markerTypeName)}</type>
+  </wpt>\n`;
     });
-    
-    gpx += `  </wpt>
-</gpx>`;
-    
+
+    gpx += `</gpx>`;
+
     return gpx;
 }
 
-// Extract route segment (simplified)
+function buildNightSplitSegments() {
+    const markerCount = AppState.markers.length;
+    const nightIndexes = AppState.markers
+        .map((marker, index) => marker.type === 'night' ? index : -1)
+        .filter(index => index > 0 && index < markerCount)
+        .sort((a, b) => a - b);
+
+    const segments = [];
+    let startIndex = 0;
+    let day = 1;
+
+    nightIndexes.forEach(nightIndex => {
+        if (nightIndex <= startIndex) return;
+
+        segments.push({
+            day,
+            name: `Giorno ${day}`,
+            markers: AppState.markers.slice(startIndex, nightIndex + 1),
+            route: extractRouteSegment(startIndex, nightIndex)
+        });
+
+        startIndex = nightIndex;
+        day += 1;
+    });
+
+    if (startIndex < markerCount - 1) {
+        segments.push({
+            day,
+            name: `Giorno ${day}`,
+            markers: AppState.markers.slice(startIndex),
+            route: extractRouteSegment(startIndex, markerCount - 1)
+        });
+    }
+
+    if (segments.length === 0) {
+        segments.push({
+            day: 1,
+            name: 'Giorno 1',
+            markers: AppState.markers,
+            route: AppState.route
+        });
+    }
+
+    return segments;
+}
+
 function extractRouteSegment(startIndex, endIndex) {
-    // This is a simplified implementation
-    // In a real implementation, you'd need to extract the actual route segment
-    return AppState.route;
+    const coordinates = Array.isArray(AppState.route?.coordinates) ? AppState.route.coordinates : [];
+    if (coordinates.length === 0) {
+        return AppState.route;
+    }
+
+    const markerRouteIndexes = getMarkerRouteIndexes(coordinates);
+    const routeStartIndex = markerRouteIndexes[startIndex] ?? 0;
+    const routeEndIndex = markerRouteIndexes[endIndex] ?? coordinates.length - 1;
+    const from = Math.max(0, Math.min(routeStartIndex, routeEndIndex));
+    const to = Math.min(coordinates.length - 1, Math.max(routeStartIndex, routeEndIndex));
+    const segmentCoordinates = coordinates.slice(from, to + 1);
+
+    if (segmentCoordinates.length > 0) {
+        const startMarker = AppState.markers[startIndex];
+        const endMarker = AppState.markers[endIndex];
+        prependEndpointCoordinate(segmentCoordinates, startMarker);
+        appendEndpointCoordinate(segmentCoordinates, endMarker);
+    }
+
+    return {
+        ...AppState.route,
+        coordinates: segmentCoordinates,
+        distance: calculateCoordinateDistanceMeters(segmentCoordinates),
+        time: estimateSegmentTime(segmentCoordinates)
+    };
+}
+
+function warnIfSplitLooksInvalid(daySegments) {
+    const fullLength = AppState.route?.coordinates?.length || 0;
+    if (!fullLength || daySegments.length <= 1) return;
+
+    const repeatedFullSegments = daySegments.filter(segment =>
+        (segment.route?.coordinates?.length || 0) >= fullLength
+    );
+
+    if (repeatedFullSegments.length > 1) {
+        showExportToast('Split GPX sospetto: alcuni giorni coprono ancora tutta la route. Ricalcola la route e riesporta.', 'fatal');
+    }
+}
+
+function prependEndpointCoordinate(coordinates, marker) {
+    if (!marker) return;
+    const coordinate = [Number(marker.lon), Number(marker.lat)];
+    const first = coordinates[0];
+    if (!first || first[0] !== coordinate[0] || first[1] !== coordinate[1]) {
+        coordinates.unshift(coordinate);
+    }
+}
+
+function appendEndpointCoordinate(coordinates, marker) {
+    if (!marker) return;
+    const coordinate = [Number(marker.lon), Number(marker.lat)];
+    const last = coordinates[coordinates.length - 1];
+    if (!last || last[0] !== coordinate[0] || last[1] !== coordinate[1]) {
+        coordinates.push(coordinate);
+    }
+}
+
+function getMarkerRouteIndexes(routeCoordinates) {
+    let minRouteIndex = 0;
+
+    return AppState.markers.map(marker => {
+        let bestIndex = minRouteIndex;
+        let bestDistance = Infinity;
+
+        for (let index = minRouteIndex; index < routeCoordinates.length; index++) {
+            const coord = routeCoordinates[index];
+            const distance = haversineDistance(marker.lat, marker.lon, coord[1], coord[0]);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = index;
+            }
+        }
+
+        minRouteIndex = bestIndex;
+        return bestIndex;
+    });
+}
+
+function calculateCoordinateDistanceMeters(coordinates) {
+    let total = 0;
+    for (let index = 1; index < coordinates.length; index++) {
+        total += haversineDistance(
+            coordinates[index - 1][1],
+            coordinates[index - 1][0],
+            coordinates[index][1],
+            coordinates[index][0]
+        ) * 1000;
+    }
+    return total;
+}
+
+function estimateSegmentTime(coordinates) {
+    const routeDistance = Number(AppState.route?.distance || 0);
+    const routeTime = Number(AppState.route?.time || 0);
+    const segmentDistance = calculateCoordinateDistanceMeters(coordinates);
+
+    if (routeDistance > 0 && routeTime > 0) {
+        return Math.round(routeTime * (segmentDistance / routeDistance));
+    }
+
+    return Math.round((segmentDistance / 1000 / 5) * 3600);
+}
+
+function escapeXml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function formatCoordinate(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toFixed(7) : String(value);
+}
+
+function findNearestElevation(marker, coordinates, elevationData) {
+    if (!marker || !Array.isArray(coordinates) || !Array.isArray(elevationData) || coordinates.length === 0) {
+        return null;
+    }
+
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+
+    coordinates.forEach((coord, index) => {
+        const distance = haversineDistance(marker.lat, marker.lon, coord[1], coord[0]);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+        }
+    });
+
+    return elevationData[bestIndex]?.elevation ?? null;
 }
 
 // Download GPX file
@@ -130,12 +300,13 @@ async function exportMapPNG() {
             a.download = `mappa-${new Date().toISOString().split('T')[0]}.png`;
             a.click();
             URL.revokeObjectURL(url);
+            showExportToast('Mappa PNG esportata.', 'info');
         } else {
-            alert('Impossibile esportare la mappa. Assicurati che la mappa sia visibile.');
+            showExportToast('Impossibile esportare la mappa: vista non disponibile.', 'warning');
         }
     } catch (error) {
         console.error('Export error:', error);
-        alert('Errore nell\'esportazione PNG');
+        showExportToast(error.message || 'Errore nell\'esportazione PNG.', 'fatal');
     }
 }
 
@@ -144,7 +315,7 @@ async function exportMapPDF() {
     try {
         const dataUrl = await exportMapAsImage('png');
         if (!dataUrl) {
-            alert('Impossibile esportare la mappa. Assicurati che la mappa sia visibile.');
+            showExportToast('Impossibile esportare la mappa: vista non disponibile.', 'warning');
             return;
         }
 
@@ -170,9 +341,10 @@ async function exportMapPDF() {
         a.download = `mappa-${new Date().toISOString().split('T')[0]}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
+        showExportToast('Mappa PDF esportata.', 'info');
     } catch (error) {
         console.error('Export error:', error);
-        alert('Errore nell\'esportazione PDF mappa');
+        showExportToast(error.message || 'Errore nell\'esportazione PDF mappa.', 'fatal');
     }
 }
 
@@ -202,9 +374,19 @@ async function exportDirectionsPDF() {
         a.download = `indicazioni-${new Date().toISOString().split('T')[0]}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
+        showExportToast('PDF indicazioni esportato.', 'info');
         
     } catch (error) {
         console.error('Export error:', error);
-        alert('Errore nell\'esportazione PDF. Verifica che il servizio di export sia attivo.');
+        showExportToast('Errore nell\'esportazione PDF. Verifica che il servizio di export sia attivo.', 'fatal');
     }
+}
+
+function showExportToast(message, level = 'info') {
+    if (typeof showToast === 'function') {
+        showToast(message, level);
+        return;
+    }
+
+    console[level === 'fatal' ? 'error' : 'warn'](message);
 }

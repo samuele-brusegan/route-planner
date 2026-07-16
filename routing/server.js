@@ -4,11 +4,13 @@ const app = express();
 const PORT = 8002;
 const DEFAULT_VALHALLA_API_URL = 'http://valhalla:8002/route';
 const VALHALLA_API_URL = process.env.VALHALLA_API_URL || DEFAULT_VALHALLA_API_URL;
-const VALHALLA_STATUS_URL = buildStatusUrl(VALHALLA_API_URL);
+const VALHALLA_ONLINE_API_URL = process.env.VALHALLA_ONLINE_API_URL || 'https://valhalla1.openstreetmap.de/route';
+const VALHALLA_STATUS_URL = process.env.VALHALLA_STATUS_URL || buildStatusUrl(VALHALLA_API_URL);
 const VALHALLA_TILE_DIR = process.env.VALHALLA_TILE_DIR || '/data/valhalla_tiles';
 const VALHALLA_TILE_EXTRACT = process.env.VALHALLA_TILE_EXTRACT || '/data/valhalla_tiles.tar';
 const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 18);
 const RELAXED_SNAP_RADIUS_METERS = Number(process.env.RELAXED_SNAP_RADIUS_METERS || 55);
+const MAX_HIKING_DIFFICULTY = clampNumber(process.env.MAX_HIKING_DIFFICULTY, 0, 6, 6);
 const GRAPHHOPPER_API_URL = process.env.GRAPHHOPPER_API_URL || 'https://graphhopper.com/api/1/route';
 const GRAPHHOPPER_API_KEY = process.env.GRAPHHOPPER_API_KEY || '';
 
@@ -31,6 +33,7 @@ app.post('/route', async (req, res) => {
             locations,
             engine = 'valhalla',
             profile = 'walking',
+            valhalla_source = 'local',
             directions_options = {}
         } = req.body;
         
@@ -38,7 +41,7 @@ app.post('/route', async (req, res) => {
             return res.status(400).json({ error: 'At least 2 locations required' });
         }
 
-        const route = await routeWithEngine(engine, locations, profile, directions_options);
+        const route = await routeWithEngine(engine, locations, profile, directions_options, valhalla_source);
         res.json(route);
     } catch (error) {
         console.error('Routing error:', error);
@@ -57,6 +60,15 @@ app.get('/status', async (req, res) => {
             service: 'routing',
             engine: 'valhalla',
             profile: 'local-first',
+            valhallaSources: {
+                local: {
+                    routeUrl: VALHALLA_API_URL,
+                    statusUrl: VALHALLA_STATUS_URL
+                },
+                online: {
+                    routeUrl: VALHALLA_ONLINE_API_URL
+                }
+            },
             valhalla
         });
     } catch (error) {
@@ -265,15 +277,15 @@ function isValidCoordinate(lon, lat) {
         Math.abs(Number(lat)) <= 90;
 }
 
-function routeWithEngine(engine, locations, profile, directionsOptions) {
+function routeWithEngine(engine, locations, profile, directionsOptions, valhallaSource = 'local') {
     if (!engine) {
         throw createRoutingError('ROUTING_ENGINE_MISSING', 'Motore routing non specificato', 400);
     }
 
-    return routeWithPrimaryAndFallback(engine, locations, profile, directionsOptions);
+    return routeWithPrimaryAndFallback(engine, locations, profile, directionsOptions, valhallaSource);
 }
 
-function routeWithSingleEngine(engine, locations, profile, directionsOptions) {
+function routeWithSingleEngine(engine, locations, profile, directionsOptions, valhallaSource = 'local') {
     if (engine === 'osrm') {
         return routeWithOsrm(locations, profile);
     }
@@ -283,22 +295,22 @@ function routeWithSingleEngine(engine, locations, profile, directionsOptions) {
     }
 
     if (engine === 'valhalla') {
-        return routeWithValhalla(locations, profile, directionsOptions);
+        return routeWithValhalla(locations, profile, directionsOptions, valhallaSource);
     }
 
     throw createRoutingError('UNSUPPORTED_ROUTING_ENGINE', `Motore routing non supportato: ${engine}`, 400);
 }
 
-async function routeWithPrimaryAndFallback(engine, locations, profile, directionsOptions) {
+async function routeWithPrimaryAndFallback(engine, locations, profile, directionsOptions, valhallaSource = 'local') {
     try {
-        return await routeWithSingleEngine(engine, locations, profile, directionsOptions);
+        return await routeWithSingleEngine(engine, locations, profile, directionsOptions, valhallaSource);
     } catch (primaryError) {
         if (locations.length < 3) {
             throw primaryError;
         }
 
         try {
-            const repairedRoute = await routeWithSegmentRepair(engine, locations, profile, directionsOptions);
+            const repairedRoute = await routeWithSegmentRepair(engine, locations, profile, directionsOptions, valhallaSource);
             if (Array.isArray(repairedRoute.trip.diagnostics)) {
                 repairedRoute.trip.diagnostics = repairedRoute.trip.diagnostics.map(item => ({
                     ...item,
@@ -320,20 +332,20 @@ async function routeWithPrimaryAndFallback(engine, locations, profile, direction
     }
 }
 
-async function routeWithSegmentRepair(engine, locations, profile, directionsOptions) {
+async function routeWithSegmentRepair(engine, locations, profile, directionsOptions, valhallaSource = 'local') {
     const segments = [];
     for (let index = 0; index < locations.length - 1; index++) {
         const pair = [locations[index], locations[index + 1]];
-        const segment = await routeBestSegment(pair, engine, profile, directionsOptions, index);
+        const segment = await routeBestSegment(pair, engine, profile, directionsOptions, index, valhallaSource);
         segments.push(segment.route);
     }
 
     return combineSegmentRoutes(segments, locations, profile);
 }
 
-async function routeBestSegment(locations, preferredEngine, profile, directionsOptions, index) {
+async function routeBestSegment(locations, preferredEngine, profile, directionsOptions, index, valhallaSource = 'local') {
     try {
-        const route = await routeWithSingleEngine(preferredEngine, locations, profile, directionsOptions);
+        const route = await routeWithSingleEngine(preferredEngine, locations, profile, directionsOptions, valhallaSource);
         markSegmentRoute(route, locations, preferredEngine, index, false);
         return { route };
     } catch (error) {
@@ -367,6 +379,7 @@ function combineSegmentRoutes(segmentRoutes, originalLocations, profile) {
     const diagnostics = [];
     const engines = new Set();
     const routingBackends = new Set();
+    const valhallaSources = new Set();
     let totalDistanceMeters = 0;
     let totalTimeSeconds = 0;
     let elevationGain = 0;
@@ -398,6 +411,7 @@ function combineSegmentRoutes(segmentRoutes, originalLocations, profile) {
         elevationGain += Number(summary.elevation_gain || leg.summary?.elevation_gain || 0);
         if (summary.engine) engines.add(summary.engine);
         if (summary.routing_backend) routingBackends.add(summary.routing_backend);
+        if (summary.valhalla_source) valhallaSources.add(summary.valhalla_source);
         if (summary.tiles_ready === false) tilesReady = false;
         if (!activeRegion && summary.active_region) activeRegion = summary.active_region;
         if (!lastBuiltAt && summary.last_built_at) lastBuiltAt = summary.last_built_at;
@@ -415,6 +429,7 @@ function combineSegmentRoutes(segmentRoutes, originalLocations, profile) {
                 fallback: hasFallback,
                 repaired_segments: hasRepairedSegments,
                 routing_backend: [...routingBackends].join('+') || 'routing',
+                valhalla_source: [...valhallaSources].join('+') || null,
                 tiles_ready: tilesReady,
                 active_region: activeRegion,
                 last_built_at: lastBuiltAt
@@ -463,18 +478,24 @@ function getRouteDistanceMeters(route) {
     return Number(route?.trip?.summary?.length || route?.trip?.legs?.[0]?.summary?.length || 0);
 }
 
-async function routeWithValhalla(locations, profile, directionsOptions) {
-    const status = await getLocalValhallaStatus();
-    if (!status.reachable || !status.tilesReady) {
-        const reason = !status.reachable
-            ? 'servizio di routing non raggiungibile'
-            : 'tile Valhalla mancanti o extract non caricato';
-        throw createRoutingError(
-            'VALHALLA_NOT_READY',
-            `Valhalla locale non pronto: ${reason}`,
-            503,
-            status
-        );
+async function routeWithValhalla(locations, profile, directionsOptions, valhallaSource = 'local') {
+    const source = normalizeValhallaSource(valhallaSource);
+    const endpoint = getValhallaEndpoint(source);
+    let status = null;
+
+    if (source === 'local') {
+        status = await getLocalValhallaStatus();
+        if (!status.reachable || !status.tilesReady) {
+            const reason = !status.reachable
+                ? 'servizio di routing non raggiungibile'
+                : 'tile Valhalla mancanti o extract non caricato';
+            throw createRoutingError(
+                'VALHALLA_NOT_READY',
+                `Valhalla locale non pronto: ${reason}`,
+                503,
+                status
+            );
+        }
     }
 
     const controller = new AbortController();
@@ -482,22 +503,42 @@ async function routeWithValhalla(locations, profile, directionsOptions) {
     const costing = profile === 'cycling' ? 'bicycle' : 'pedestrian';
 
     try {
-        const data = await requestValhallaRoute(locations, profile, directionsOptions, costing, controller.signal);
-        const route = normalizeValhallaRoute(data.response, locations, profile);
-        route.trip.summary.routing_backend = 'local-valhalla';
-        route.trip.summary.tiles_ready = true;
+        const data = await requestValhallaRoute(locations, profile, directionsOptions, costing, endpoint.routeUrl, controller.signal);
+        const route = normalizeValhallaRoute(data.response, locations, profile, source);
+        route.trip.summary.routing_backend = endpoint.backend;
+        route.trip.summary.valhalla_source = source;
+        route.trip.summary.tiles_ready = source === 'local';
         route.trip.summary.snap_mode = data.snapMode;
         route.trip.summary.snap_radius_meters = data.snapRadiusMeters;
-        route.trip.summary.active_region = status.activeRegion || null;
-        route.trip.summary.last_built_at = status.lastBuiltAt || null;
-        route.trip.summary.valhalla_status = status.upstreamStatus || null;
+        route.trip.summary.max_hiking_difficulty = costing === 'pedestrian' ? MAX_HIKING_DIFFICULTY : null;
+        route.trip.summary.active_region = status?.activeRegion || null;
+        route.trip.summary.last_built_at = status?.lastBuiltAt || null;
+        route.trip.summary.valhalla_status = status?.upstreamStatus || null;
         return route;
     } finally {
         clearTimeout(timeout);
     }
 }
 
-async function requestValhallaRoute(locations, profile, directionsOptions, costing, signal) {
+function normalizeValhallaSource(source) {
+    return source === 'online' ? 'online' : 'local';
+}
+
+function getValhallaEndpoint(source) {
+    if (source === 'online') {
+        return {
+            routeUrl: VALHALLA_ONLINE_API_URL,
+            backend: 'online-valhalla'
+        };
+    }
+
+    return {
+        routeUrl: VALHALLA_API_URL,
+        backend: 'local-valhalla'
+    };
+}
+
+async function requestValhallaRoute(locations, profile, directionsOptions, costing, routeUrl, signal) {
     const attempts = [
         {
             snapMode: 'nearest',
@@ -518,7 +559,7 @@ async function requestValhallaRoute(locations, profile, directionsOptions, costi
         try {
             return {
                 ...attempt,
-                response: await fetchValhallaRoute(locations, profile, directionsOptions, costing, signal, attempt)
+                response: await fetchValhallaRoute(locations, profile, directionsOptions, costing, routeUrl, signal, attempt)
             };
         } catch (error) {
             lastError = error;
@@ -528,7 +569,7 @@ async function requestValhallaRoute(locations, profile, directionsOptions, costi
     throw lastError || new Error('Valhalla route failed');
 }
 
-async function fetchValhallaRoute(locations, profile, directionsOptions, costing, signal, snapOptions) {
+async function fetchValhallaRoute(locations, profile, directionsOptions, costing, routeUrl, signal, snapOptions) {
     const routeLocations = locations.map((loc, index) => ({
         lat: loc.lat,
         lon: loc.lon,
@@ -538,7 +579,7 @@ async function fetchValhallaRoute(locations, profile, directionsOptions, costing
         minimum_reachability: snapOptions.minimumReachability
     }));
 
-    const response = await fetch(VALHALLA_API_URL, {
+    const response = await fetch(routeUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -547,19 +588,7 @@ async function fetchValhallaRoute(locations, profile, directionsOptions, costing
         body: JSON.stringify({
             locations: routeLocations,
             costing,
-            costing_options: {
-                pedestrian: {
-                    use_tracks: 1,
-                    use_paths: 1,
-                    use_living_streets: 0.9,
-                    walking_speed: 4.8
-                },
-                bicycle: {
-                    use_roads: 0.8,
-                    use_hills: 0.85,
-                    cycling_speed: 14
-                }
-            },
+            costing_options: buildValhallaCostingOptions(),
             directions_options: {
                 language: directionsOptions.language || 'it-IT',
                 units: 'kilometers'
@@ -579,6 +608,23 @@ async function fetchValhallaRoute(locations, profile, directionsOptions, costing
     }
 
     return data;
+}
+
+function buildValhallaCostingOptions() {
+    return {
+        pedestrian: {
+            use_tracks: 1,
+            use_paths: 1,
+            use_living_streets: 0.9,
+            walking_speed: 4.8,
+            max_hiking_difficulty: MAX_HIKING_DIFFICULTY
+        },
+        bicycle: {
+            use_roads: 0.8,
+            use_hills: 0.85,
+            cycling_speed: 14
+        }
+    };
 }
 
 async function routeWithOsrm(locations, profile) {
@@ -632,7 +678,7 @@ async function routeWithGraphHopper(locations, profile, directionsOptions) {
     return normalizeGraphHopperRoute(data, locations, profile);
 }
 
-function normalizeValhallaRoute(data, originalLocations, profile) {
+function normalizeValhallaRoute(data, originalLocations, profile, valhallaSource = 'local') {
     const routeCoordinates = [];
     const maneuvers = [];
     const snappedLocations = normalizeValhallaLocations(data.trip.locations);
@@ -710,8 +756,9 @@ function normalizeValhallaRoute(data, originalLocations, profile) {
                 elevation_gain: elevationGain,
                 engine: 'valhalla',
                 profile,
-                routing_backend: 'local-valhalla',
-                tiles_ready: true,
+                routing_backend: valhallaSource === 'online' ? 'online-valhalla' : 'local-valhalla',
+                valhalla_source: valhallaSource,
+                tiles_ready: valhallaSource === 'local',
                 endpoint_threshold_meters: endpointThresholdMeters,
                 endpoint_checks: endpointChecks,
                 endpoint_reconciled: endpointChecks.some(check => check.distanceMeters > 0 && check.distanceMeters <= endpointThresholdMeters)
@@ -1159,6 +1206,12 @@ function buildStatusUrl(routeUrl) {
     } catch (error) {
         return 'http://valhalla:8002/status';
     }
+}
+
+function clampNumber(value, min, max, fallback) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.min(max, Math.max(min, number));
 }
 
 function createRoutingError(code, message, statusCode = 503, details = null) {
