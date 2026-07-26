@@ -928,34 +928,37 @@ function displayRoute(routeData) {
         // Split route into day segments and color each differently
         const segments = computeRouteDaySegments(routeData.coordinates, nightMarkers);
         const segmentCount = segments.length;
+
+        // Precompute projected segments and overlap masks
+        const projectedSegments = segments.map(seg => seg.map(coord => ol.proj.fromLonLat([coord[0], coord[1]])));
+        const overlapMasks = computeOverlapMasks(projectedSegments, 80);
+
         segments.forEach((seg, i) => {
             const dayColor = getDayColor(i);
-            const segCoords = seg.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
+            const segCoords = projectedSegments[i];
             const feature = new ol.Feature({
                 geometry: new ol.geom.LineString(segCoords)
             });
             feature.set('dayIndex', i);
             feature.set('segmentCount', segmentCount);
+            const overlapMask = overlapMasks[i];
             // Dynamic style function: offset in screen pixels adapts to zoom
             feature.setStyle(function(feature, resolution) {
-                // Base offset in pixels: larger when zoomed out, smaller when zoomed in
-                // At zoom 14 (resolution ~9.5m/px): offset ~3px
-                // At zoom 10 (resolution ~152m/px): offset ~8px
-                const baseOffsetPx = Math.max(2, Math.min(10, 3 + Math.log10(resolution) * 1.5));
+                // Reduced offset: 1-4px depending on zoom
+                const baseOffsetPx = Math.max(1, Math.min(4, 1.5 + Math.log10(resolution) * 0.8));
                 const offsetMultiplier = i - (segmentCount - 1) / 2;
                 const offsetPx = offsetMultiplier * baseOffsetPx;
 
-                if (Math.abs(offsetPx) < 0.5) {
+                if (Math.abs(offsetPx) < 0.3 || !overlapMask) {
                     return new ol.style.Style({
                         stroke: new ol.style.Stroke({ color: dayColor, width: 4 })
                     });
                 }
 
-                // Convert pixel offset to meters at current resolution
                 const offsetMeters = offsetPx * resolution;
                 const geom = feature.getGeometry();
                 const coords = geom.getCoordinates();
-                const offsetCoords = applyPerpendicularOffsetProjected(coords, offsetMeters);
+                const offsetCoords = applyPartialOffset(coords, offsetMeters, overlapMask);
                 return new ol.style.Style({
                     geometry: new ol.geom.LineString(offsetCoords),
                     stroke: new ol.style.Stroke({ color: dayColor, width: 4 })
@@ -1001,6 +1004,86 @@ function computeRouteDaySegments(routeCoords, nightMarkers) {
     }
 
     return segments;
+}
+
+// Compute overlap masks: for each segment, a Float32Array where each value (0..1)
+// indicates how much that coordinate overlaps with other segments.
+// thresholdMeters: distance below which two points are considered overlapping
+function computeOverlapMasks(projectedSegments, thresholdMeters) {
+    const n = projectedSegments.length;
+    const masks = [];
+
+    for (let s = 0; s < n; s++) {
+        const seg = projectedSegments[s];
+        const mask = new Float32Array(seg.length);
+        const thresholdSq = thresholdMeters * thresholdMeters;
+        const falloffRange = thresholdMeters * 1.5; // smooth transition zone
+
+        for (let i = 0; i < seg.length; i++) {
+            let minDistSq = Infinity;
+            for (let other = 0; other < n; other++) {
+                if (other === s) continue;
+                const otherSeg = projectedSegments[other];
+                for (let j = 0; j < otherSeg.length; j++) {
+                    const dx = seg[i][0] - otherSeg[j][0];
+                    const dy = seg[i][1] - otherSeg[j][1];
+                    const dSq = dx * dx + dy * dy;
+                    if (dSq < minDistSq) minDistSq = dSq;
+                }
+            }
+
+            if (minDistSq <= thresholdSq) {
+                mask[i] = 1.0;
+            } else {
+                const dist = Math.sqrt(minDistSq);
+                if (dist < thresholdMeters + falloffRange) {
+                    mask[i] = 1.0 - (dist - thresholdMeters) / falloffRange;
+                } else {
+                    mask[i] = 0;
+                }
+            }
+        }
+
+        masks.push(mask);
+    }
+
+    return masks;
+}
+
+// Apply perpendicular offset only where mask > 0, with smooth transitions
+function applyPartialOffset(coords, offsetMeters, mask) {
+    if (!mask || coords.length < 2) return coords;
+
+    const result = [];
+    for (let i = 0; i < coords.length; i++) {
+        const strength = mask[i];
+        if (strength < 0.01) {
+            result.push([coords[i][0], coords[i][1]]);
+            continue;
+        }
+
+        let dx, dy;
+        if (i === 0) {
+            dx = coords[1][0] - coords[0][0];
+            dy = coords[1][1] - coords[0][1];
+        } else if (i === coords.length - 1) {
+            dx = coords[i][0] - coords[i - 1][0];
+            dy = coords[i][1] - coords[i - 1][1];
+        } else {
+            dx = coords[i + 1][0] - coords[i - 1][0];
+            dy = coords[i + 1][1] - coords[i - 1][1];
+        }
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len === 0) {
+            result.push([coords[i][0], coords[i][1]]);
+            continue;
+        }
+        const effectiveOffset = offsetMeters * strength;
+        const perpX = -dy / len * effectiveOffset;
+        const perpY = dx / len * effectiveOffset;
+        result.push([coords[i][0] + perpX, coords[i][1] + perpY]);
+    }
+    return result;
 }
 
 // Apply perpendicular offset to projected coordinates (Web Mercator, in meters)
