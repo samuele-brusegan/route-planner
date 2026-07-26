@@ -38,6 +38,7 @@ const searchRouter = require('./routes/search');
 const poiRouter = require('./routes/poi');
 const terrainRouter = require('./routes/terrain');
 const shareRouter = require('./routes/share');
+const elevationRouter = require('./routes/elevation');
 
 app.use('/api/routing', routingRouter);
 app.use('/api/export', exportRouter);
@@ -45,6 +46,7 @@ app.use('/api/search', searchRouter);
 app.use('/api/poi', poiRouter);
 app.use('/api/terrain', terrainRouter);
 app.use('/api/share', shareRouter);
+app.use('/api/elevation', elevationRouter);
 
 // --- Valhalla proxy (transparent) ---
 const valhallaUrl = process.env.VALHALLA_URL || 'http://valhalla:8002';

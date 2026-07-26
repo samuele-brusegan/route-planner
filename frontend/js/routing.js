@@ -161,26 +161,72 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Get elevation data for route using Open-Meteo Elevation API
+// Get elevation data for route using backend proxy (avoids CORS), then direct API fallback
 async function getElevationData(coordinates) {
     if (!coordinates || coordinates.length === 0) return [];
 
     const sampled = sampleElevationCoordinates(coordinates, 300);
 
+    // Try backend proxy first
+    try {
+        const elevations = await fetchElevationViaProxy(sampled);
+        if (elevations && elevations.length === sampled.length) {
+            const result = interpolateElevation(coordinates, sampled, elevations);
+            warnIfZeroElevation(result);
+            return result;
+        }
+    } catch (proxyError) {
+        console.warn('Elevation proxy failed, trying direct API:', proxyError);
+    }
+
+    // Fallback: direct API call from browser
     try {
         const elevations = await fetchElevationBatch(sampled);
         if (elevations && elevations.length === sampled.length) {
-            return interpolateElevation(coordinates, sampled, elevations);
+            const result = interpolateElevation(coordinates, sampled, elevations);
+            warnIfZeroElevation(result);
+            return result;
         }
     } catch (error) {
-        console.error('Elevation API error, using fallback:', error);
+        console.error('Elevation API error:', error);
     }
 
+    showToast('Dati di elevazione non disponibili', 'warn');
     return coordinates.map(coord => ({
         lat: coord[1],
         lon: coord[0],
         elevation: 0
     }));
+}
+
+function warnIfZeroElevation(elevationData) {
+    const allZero = elevationData.length > 0 && elevationData.every(d => d.elevation === 0);
+    if (allZero) {
+        console.warn('All elevation values are 0 — API may be returning empty data');
+        showToast('Elevazione non disponibile (dati a zero)', 'warn');
+    }
+}
+
+async function fetchElevationViaProxy(coordinates) {
+    const batchSize = 100;
+    const allElevations = [];
+
+    for (let i = 0; i < coordinates.length; i += batchSize) {
+        const batch = coordinates.slice(i, i + batchSize);
+        const response = await fetch('/api/elevation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                coordinates: batch.map(c => ({ lat: c[1], lon: c[0] }))
+            })
+        });
+        if (!response.ok) throw new Error(`Elevation proxy responded ${response.status}`);
+        const data = await response.json();
+        if (!Array.isArray(data.elevations)) throw new Error('Invalid proxy response');
+        allElevations.push(...data.elevations);
+    }
+
+    return allElevations;
 }
 
 function sampleElevationCoordinates(coordinates, maxPoints) {

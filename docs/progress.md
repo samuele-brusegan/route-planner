@@ -18,8 +18,8 @@
 
 | Task | Status | Date | Notes |
 |------|--------|------|-------|
-| 2.1 Fix elevation data (sea level) | [ ] | | |
-| 2.2 Color route days differently | [ ] | | |
+| 2.1 Fix elevation data (sea level) | [x] | 2026-07-26 | Backend proxy `/api/elevation` with retry, frontend proxy-first fallback, warning toast on zero |
+| 2.2 Color route days differently | [x] | 2026-07-26 | DAY_COLORS palette, day-stat colored borders, chart day bands, map day segments |
 
 ## Phase 3: Search & Export
 

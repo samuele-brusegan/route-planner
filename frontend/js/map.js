@@ -921,17 +921,64 @@ function displayRoute(routeData) {
     const coordinates = routeData.coordinates.map(coord => 
         ol.proj.fromLonLat([coord[0], coord[1]])
     );
-    
-    const feature = new ol.Feature({
-        geometry: new ol.geom.LineString(coordinates)
-    });
-    
-    routeLayer.getSource().addFeature(feature);
+
+    const nightMarkers = AppState.markers.filter(m => m.type === 'night');
+
+    if (nightMarkers.length > 0) {
+        // Split route into day segments and color each differently
+        const segments = computeRouteDaySegments(routeData.coordinates, nightMarkers);
+        segments.forEach((seg, i) => {
+            const dayColor = DAY_COLORS[i % DAY_COLORS.length];
+            const segCoords = seg.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
+            const feature = new ol.Feature({
+                geometry: new ol.geom.LineString(segCoords)
+            });
+            feature.setStyle(new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                    color: dayColor,
+                    width: 4
+                })
+            }));
+            routeLayer.getSource().addFeature(feature);
+        });
+    } else {
+        const feature = new ol.Feature({
+            geometry: new ol.geom.LineString(coordinates)
+        });
+        routeLayer.getSource().addFeature(feature);
+    }
+
     updateRoutingDebugLayer(routeData);
     
     // Fit map to route
     const extent = routeLayer.getSource().getExtent();
     map.getView().fit(extent, { padding: [50, 50, 50, 50] });
+}
+
+// Compute route segments split by night markers
+function computeRouteDaySegments(routeCoords, nightMarkers) {
+    const segments = [];
+    let startIdx = 0;
+
+    nightMarkers.forEach((marker) => {
+        let closestIdx = 0;
+        let closestDist = Infinity;
+        for (let i = 0; i < routeCoords.length; i++) {
+            const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
+            if (d < closestDist) {
+                closestDist = d;
+                closestIdx = i;
+            }
+        }
+        segments.push(routeCoords.slice(startIdx, closestIdx + 1));
+        startIdx = closestIdx;
+    });
+
+    if (startIdx < routeCoords.length - 1) {
+        segments.push(routeCoords.slice(startIdx));
+    }
+
+    return segments;
 }
 
 // Clear route from map

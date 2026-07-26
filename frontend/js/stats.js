@@ -143,10 +143,12 @@ function updateStatistics() {
     dailyStatsContainer.innerHTML = '';
     
     AppState.dailyStats.forEach(day => {
+        const dayColor = DAY_COLORS[(day.day - 1) % DAY_COLORS.length];
         const dayDiv = document.createElement('div');
         dayDiv.className = 'day-stat';
+        dayDiv.style.borderLeftColor = dayColor;
         dayDiv.innerHTML = `
-            <h4>Giorno ${day.day}</h4>
+            <h4 style="color: ${dayColor}">Giorno ${day.day}</h4>
             <div class="day-stats-grid">
                 <div class="day-stat-item">
                     Distanza: <span class="day-stat-value">${day.distance} km</span>

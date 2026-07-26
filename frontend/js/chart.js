@@ -248,6 +248,27 @@ async function updateElevationChart() {
             }
         });
     });
+
+    // Add day background bands with distinct colors
+    const dayBoundaries = computeDayBoundaries(routeCoords, elevationData.length);
+    dayBoundaries.forEach((boundary, i) => {
+        const dayColor = DAY_COLORS[i % DAY_COLORS.length];
+        annotations.push({
+            type: 'box',
+            xMin: boundary.start,
+            xMax: boundary.end,
+            backgroundColor: dayColor + '15',
+            borderColor: 'transparent',
+            drawTime: 'beforeDraw',
+            label: {
+                display: true,
+                content: 'Giorno ' + (i + 1),
+                color: dayColor,
+                position: 'start',
+                font: { size: 10, weight: 'bold' }
+            }
+        });
+    });
     
     if (!elevationChart) {
         initElevationChart();
@@ -272,4 +293,37 @@ function downloadChart() {
     link.download = `profilo-altimetrico-${new Date().toISOString().split('T')[0]}.png`;
     link.href = elevationChart.toBase64Image();
     link.click();
+}
+
+// Compute day boundaries for chart annotations based on night markers
+function computeDayBoundaries(routeCoords, elevationLength) {
+    const nightMarkers = AppState.markers.filter(m => m.type === 'night');
+    const boundaries = [];
+
+    if (nightMarkers.length === 0) {
+        boundaries.push({ start: 0, end: elevationLength - 1 });
+        return boundaries;
+    }
+
+    let prevIdx = 0;
+    nightMarkers.forEach((marker) => {
+        let closestIdx = 0;
+        let closestDist = Infinity;
+        for (let i = 0; i < routeCoords.length; i++) {
+            const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
+            if (d < closestDist) {
+                closestDist = d;
+                closestIdx = i;
+            }
+        }
+        const routeIndex = Math.round(closestIdx * (elevationLength / routeCoords.length));
+        boundaries.push({ start: prevIdx, end: routeIndex });
+        prevIdx = routeIndex;
+    });
+
+    if (prevIdx < elevationLength - 1) {
+        boundaries.push({ start: prevIdx, end: elevationLength - 1 });
+    }
+
+    return boundaries;
 }
