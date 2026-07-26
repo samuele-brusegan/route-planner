@@ -441,8 +441,30 @@ function setupButtons() {
     // Add marker type button
     document.getElementById('add-marker-type-btn').addEventListener('click', addMarkerType);
     
-    // Download chart button
+    // Download chart buttons
     document.getElementById('download-chart').addEventListener('click', downloadChart);
+    const csvBtn = document.getElementById('download-chart-csv');
+    if (csvBtn) csvBtn.addEventListener('click', downloadChartCSV);
+    const perDayBtn = document.getElementById('download-chart-per-day');
+    if (perDayBtn) perDayBtn.addEventListener('click', downloadChartPerDay);
+
+    // Chart maximize/restore
+    const chartMaxBtn = document.getElementById('chart-maximize');
+    if (chartMaxBtn) {
+        const expandIcon = '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
+        const contractIcon = '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>';
+        chartMaxBtn.addEventListener('click', () => {
+            const panel = document.getElementById('top-panel');
+            if (!panel) return;
+            const isMaximized = panel.classList.toggle('maximized');
+            const svg = document.getElementById('chart-maximize-icon');
+            if (svg) svg.innerHTML = isMaximized ? contractIcon : expandIcon;
+            chartMaxBtn.setAttribute('aria-label', isMaximized ? 'Ripristina' : 'Massimizza');
+            if (elevationChart) {
+                setTimeout(() => elevationChart.resize(), 50);
+            }
+        });
+    }
 
     const routeColorInput = document.getElementById('route-color-input');
     routeColorInput.addEventListener('input', (event) => {
