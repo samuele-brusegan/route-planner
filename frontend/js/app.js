@@ -252,6 +252,7 @@ function clearAll() {
         clearMapMarkers();
         clearRoute();
         localStorage.removeItem('routePlannerData');
+        updateElevationChart();
         updateUI();
     }
 }
