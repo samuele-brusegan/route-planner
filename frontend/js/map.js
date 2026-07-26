@@ -144,7 +144,7 @@ async function initMap() {
 
     // Add click handler for placing markers
     map.on('click', handleMapClick);
-
+    
     // Check for saved offline mode preference
     const savedMode = localStorage.getItem('offlineMode');
     if (savedMode === 'true') {
@@ -927,15 +927,10 @@ function displayRoute(routeData) {
     if (nightMarkers.length > 0) {
         // Split route into day segments and color each differently
         const segments = computeRouteDaySegments(routeData.coordinates, nightMarkers);
-        // Dynamic offset: scale with map resolution so it's visible at any zoom
-        // ~4 pixels of offset at current zoom level
-        const resolution = map.getView().getResolution();
-        const metersPerPixel = resolution * 111319.49;
-        const offsetMeters = Math.max(2, metersPerPixel * 4);
         segments.forEach((seg, i) => {
             const dayColor = getDayColor(i);
-            // Apply perpendicular offset so overlapping days are both visible
-            const offsetSegs = applyPerpendicularOffset(seg, (i - (segments.length - 1) / 2) * offsetMeters);
+            // Apply small perpendicular offset so overlapping days are both visible
+            const offsetSegs = applyPerpendicularOffset(seg, (i - (segments.length - 1) / 2) * 6);
             const segCoords = offsetSegs.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
             const feature = new ol.Feature({
                 geometry: new ol.geom.LineString(segCoords)
@@ -978,7 +973,7 @@ function computeRouteDaySegments(routeCoords, nightMarkers) {
             }
         }
         segments.push(routeCoords.slice(startIdx, closestIdx + 1));
-        startIdx = closestIdx;
+        startIdx = Math.max(closestIdx, startIdx);
     });
 
     if (startIdx < routeCoords.length - 1) {
