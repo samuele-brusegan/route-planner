@@ -945,13 +945,13 @@ function displayRoute(routeData) {
             // Dynamic style function: offset in screen pixels adapts to zoom
             feature.setStyle(function(feature, resolution) {
                 // No offset at high zoom (resolution < 2.4 m/px ≈ zoom 16+)
-                if (resolution < 2.4 || resolution > 75) {
+                if (/* resolution < 2.4 || */ resolution > 75) {
                     return new ol.style.Style({
                         stroke: new ol.style.Stroke({ color: dayColor, width: 4 })
                     });
                 }
                 // Minimal offset: 0.5-1.5px so lines are nearly touching
-                const baseOffsetPx = Math.max(0.5, Math.min(1.5, 0.5 + Math.log10(resolution) * 0.3));
+                const baseOffsetPx = Math.max(1, Math.min(2, 0.75 + Math.log10(resolution) * 50));
                 const offsetMultiplier = i - (segmentCount - 1) / 2;
                 const offsetPx = offsetMultiplier * baseOffsetPx;
 
