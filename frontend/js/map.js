@@ -147,15 +147,17 @@ async function initMap() {
 
     // Re-render route on zoom change to update dynamic day offset
     let zoomRenderTimer = null;
-    map.getView().on('change:resolution', () => {
+    map.on('moveend', () => {
+        if (skipNextMoveEnd) {
+            skipNextMoveEnd = false;
+            return;
+        }
         if (!lastRouteData) return;
         clearTimeout(zoomRenderTimer);
         zoomRenderTimer = setTimeout(() => {
-            // Re-render without fitting map (preserve user's zoom/pan)
             const routeData = lastRouteData;
-            lastRouteData = null; // prevent fit
             displayRouteNoFit(routeData);
-        }, 150);
+        }, 200);
     });
     
     // Check for saved offline mode preference
@@ -927,6 +929,7 @@ function clearMapMarkers() {
 
 // Display route on map
 let lastRouteData = null;
+let skipNextMoveEnd = false;
 
 function displayRoute(routeData) {
     routeLayer.getSource().clear();
@@ -974,6 +977,7 @@ function displayRoute(routeData) {
     updateRoutingDebugLayer(routeData);
     
     // Fit map to route
+    skipNextMoveEnd = true;
     const extent = routeLayer.getSource().getExtent();
     map.getView().fit(extent, { padding: [50, 50, 50, 50] });
 }
