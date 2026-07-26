@@ -84,6 +84,7 @@ AppState.routingEngine = 'valhalla';
 AppState.routingProfile = 'walking';
 AppState.valhallaSource = 'local';
 AppState.showRoutingDebug = false;
+AppState.showRoutingWarnings = false;
 AppState.showOsmGraph = false;
 AppState.showOsmInspector = false;
 AppState.routingError = null;
@@ -112,6 +113,7 @@ function saveToLocalStorage() {
         routingProfile: AppState.routingProfile,
         valhallaSource: AppState.valhallaSource,
         showRoutingDebug: AppState.showRoutingDebug,
+        showRoutingWarnings: AppState.showRoutingWarnings,
         showOsmGraph: AppState.showOsmGraph,
         showOsmInspector: AppState.showOsmInspector,
         routingError: AppState.routingError
@@ -179,6 +181,7 @@ async function loadFromLocalStorage() {
         AppState.routingProfile = parsed.routingProfile || AppState.routingProfile;
         AppState.valhallaSource = parsed.valhallaSource || AppState.valhallaSource;
         AppState.showRoutingDebug = parsed.showRoutingDebug || false;
+        AppState.showRoutingWarnings = parsed.showRoutingWarnings || false;
         AppState.showOsmGraph = parsed.showOsmGraph || false;
         AppState.showOsmInspector = parsed.showOsmInspector || false;
         AppState.routingError = parsed.routingError || null;

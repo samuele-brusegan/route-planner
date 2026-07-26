@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Route Planner</title>
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     <link rel="manifest" href="manifest.json">
@@ -196,14 +197,14 @@
             <div id="routing-diagnostics" class="routing-diagnostics hidden"></div>
             <div class="markers-section-label">Punti</div>
             <div id="markers-list"></div>
-            <button id="add-marker-btn" class="btn primary">
-                <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"/>
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                </svg>
-                Aggiungi Punto
-            </button>
         </div>
+        <button id="add-marker-btn" class="btn primary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Aggiungi Punto
+        </button>
     </div>
 
     <!-- Right Panel - Marker Types -->
@@ -500,6 +501,14 @@
 
                 <section class="settings-section">
                     <h4>Debug routing</h4>
+                    <label class="settings-row" for="toggle-routing-warnings">
+                        <span>
+                            <strong>Avvisi routing</strong>
+                            <small>Mostra avvisi e diagnostica nel pannello Route.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-routing-warnings" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
                     <label class="settings-row" for="toggle-routing-debug">
                         <span>
                             <strong>Strade usate dal routing</strong>

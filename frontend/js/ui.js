@@ -206,6 +206,12 @@ function setupMenuDropdowns() {
     
     document.getElementById('open-settings-from-view').addEventListener('click', openSettingsModal);
 
+    document.getElementById('toggle-routing-warnings').addEventListener('change', () => {
+        AppState.showRoutingWarnings = document.getElementById('toggle-routing-warnings').checked;
+        saveToLocalStorage();
+        updateRoutingDiagnostics();
+        syncSettingsSwitches();
+    });
     document.getElementById('toggle-routing-debug').addEventListener('change', () => {
         setRoutingDebugVisible(document.getElementById('toggle-routing-debug').checked);
         syncSettingsSwitches();
@@ -411,6 +417,7 @@ function syncSettingsSwitches() {
     setSwitchChecked('toggle-top-panel', isPanelVisible('top-panel'));
     setSwitchChecked('toggle-directions-panel', isPanelVisible('directions-panel'));
     setSwitchChecked('toggle-osm-inspector', AppState.showOsmInspector);
+    setSwitchChecked('toggle-routing-warnings', AppState.showRoutingWarnings);
     setSwitchChecked('toggle-routing-debug', AppState.showRoutingDebug);
     setSwitchChecked('toggle-osm-graph', AppState.showOsmGraph);
     setSwitchChecked('toggle-trail-overlay', getTrailOverlayVisible());
@@ -536,6 +543,12 @@ function updateRoutingDiagnostics() {
             <p>${escapeHtml(AppState.routingError)}</p>
             <p>Il motore locale deve essere pronto e caricato con tile Valhalla validi.</p>
         `;
+        return;
+    }
+
+    if (!AppState.showRoutingWarnings) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
         return;
     }
 
