@@ -40,6 +40,6 @@
 
 | Task | Status | Date | Notes |
 |------|--------|------|-------|
-| 5.1 Multiple route overlay | [ ] | | |
-| 5.2 First-launch tutorial | [ ] | | |
-| 5.3 Unified tile management UI | [ ] | | |
+| 5.1 Multiple route overlay | [x] | 2026-07-26 | route-overlay.js: GPX overlay panel, distinct colors, toggle visibility, toolbar button |
+| 5.2 First-launch tutorial | [x] | 2026-07-26 | tutorial.js: 9-step walkthrough, localStorage flag, skip/prev/next |
+| 5.3 Unified tile management UI | [x] | 2026-07-26 | tile-manager.js: tabs for display/Valhalla/DEM tiles, /tile-manager route |

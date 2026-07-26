@@ -104,6 +104,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof initRouter === 'function') {
         initRouter();
     }
+    if (typeof showTutorial === 'function') {
+        showTutorial();
+    }
 });
 
 // Save to localStorage

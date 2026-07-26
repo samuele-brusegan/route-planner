@@ -6,6 +6,7 @@ const Routes = {
     '/': { view: 'main', title: 'Route Planner' },
     '/gpx-inspector': { view: 'gpx-inspector', title: 'GPX Inspector' },
     '/secret': { view: 'secret', title: 'Route List' },
+    '/tile-manager': { view: 'tile-manager', title: 'Gestione Tile' },
     '/offline-maps': { view: 'offline-maps', title: 'Mappe Offline' },
     '/map-manager': { view: 'map-manager', title: 'Gestione Mappe' }
 };
@@ -43,6 +44,11 @@ function handleRoute() {
         return;
     }
 
+    if (route.view === 'tile-manager') {
+        loadTileManagerView();
+        return;
+    }
+
     if (route.view === 'offline-maps') {
         window.location.href = '/offline-maps.html';
         return;
@@ -76,6 +82,14 @@ function loadSecretView() {
 
     hideMainApp();
     importSecret();
+}
+
+function loadTileManagerView() {
+    if (currentView === 'tile-manager') return;
+    currentView = 'tile-manager';
+
+    hideMainApp();
+    importTileManager();
 }
 
 function hideMainApp() {
@@ -154,6 +168,22 @@ function importSecret() {
     script.onload = () => {
         if (typeof initSecret === 'function') {
             initSecret(container);
+        }
+    };
+    document.head.appendChild(script);
+}
+
+function importTileManager() {
+    const container = document.createElement('div');
+    container.id = 'injected-view';
+    container.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:1;background:var(--bg);overflow:auto;';
+    document.body.appendChild(container);
+
+    const script = document.createElement('script');
+    script.src = '/js/tile-manager.js';
+    script.onload = () => {
+        if (typeof initTileManager === 'function') {
+            initTileManager(container);
         }
     };
     document.head.appendChild(script);

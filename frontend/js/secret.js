@@ -142,6 +142,7 @@ function initSecret(container) {
 const SECRET_PAGES = [
     { url: '/', name: 'Route Planner', desc: 'App principale: pianifica route con routing Valhalla' },
     { url: '/gpx-inspector', name: 'GPX Inspector', desc: 'Ispeziona file GPX e ZIP su mappa' },
+    { url: '/tile-manager', name: 'Gestione Tile', desc: 'Gestione unificata tile: mappa, Valhalla, DEM' },
     { url: '/offline-maps', name: 'Mappe Offline', desc: 'Scarica tile per uso offline' },
     { url: '/map-manager', name: 'Gestione Mappe', desc: 'Scarica e gestisci tile Valhalla regionali' },
     { url: '/secret', name: 'Route List', desc: 'Questa pagina: lista pagine e route salvate' }

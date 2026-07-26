@@ -91,6 +91,11 @@
                 <polygon points="3 11 22 2 13 21 11 13 3 11"/>
             </svg>
         </button>
+        <button class="tool-btn" data-panel-toggle="overlay-routes-panel" title="Route Overlay">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12h4l3-9 4 18 3-9h4"/>
+            </svg>
+        </button>
         <div class="tool-divider"></div>
         <button class="tool-btn" id="toolbar-add-marker" title="Aggiungi punto">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -394,6 +399,31 @@
         </div>
     </div>
 
+    <!-- Overlay Routes Panel -->
+    <div id="overlay-routes-panel" class="panel hidden" style="bottom:80px;right:12px;width:300px;max-height:400px;display:flex;flex-direction:column">
+        <div class="panel-header">
+            <div class="panel-header-title">
+                <svg class="panel-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12h4l3-9 4 18 3-9h4"/>
+                </svg>
+                <h3>Route Overlay</h3>
+            </div>
+            <button class="close-btn" data-panel="overlay-routes-panel" aria-label="Chiudi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="panel-content" style="flex:1;min-height:0;overflow-y:auto">
+            <button id="overlay-import-btn" class="btn secondary" style="width:100%;margin-bottom:8px">Importa GPX overlay</button>
+            <input type="file" id="overlay-file-input" accept=".gpx" multiple style="display:none">
+            <div id="overlay-routes-list"></div>
+            <button id="overlay-clear-btn" class="btn secondary" style="width:100%;margin-top:8px">Cancella tutti</button>
+            <button id="overlay-fit-btn" class="btn secondary" style="width:100%;margin-top:4px">Adatta mappa</button>
+        </div>
+    </div>
+
     <!-- Export Modal -->
     <div id="export-page" class="modal settings-modal hidden" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <div class="modal-content settings-modal-content export-modal-content">
@@ -605,6 +635,8 @@
     <script src="js/trail-analysis.js"></script>
     <script src="js/poi.js"></script>
     <script src="js/router.js"></script>
+    <script src="js/route-overlay.js"></script>
+    <script src="js/tutorial.js"></script>
     <script src="js/app.js"></script>
     <script>
         if ('serviceWorker' in navigator) {

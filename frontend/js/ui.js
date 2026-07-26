@@ -497,6 +497,28 @@ function setupButtons() {
 
     const shareRouteBtn = document.getElementById('share-route');
     if (shareRouteBtn) shareRouteBtn.addEventListener('click', () => copyShareUrl());
+
+    // Overlay routes panel
+    const overlayImportBtn = document.getElementById('overlay-import-btn');
+    const overlayFileInput = document.getElementById('overlay-file-input');
+    if (overlayImportBtn && overlayFileInput) {
+        overlayImportBtn.addEventListener('click', () => overlayFileInput.click());
+        overlayFileInput.addEventListener('change', async (e) => {
+            for (const file of e.target.files) {
+                await addOverlayRouteFromFile(file);
+            }
+            overlayFileInput.value = '';
+        });
+    }
+    const overlayClearBtn = document.getElementById('overlay-clear-btn');
+    if (overlayClearBtn) overlayClearBtn.addEventListener('click', clearOverlayRoutes);
+    const overlayFitBtn = document.getElementById('overlay-fit-btn');
+    if (overlayFitBtn) overlayFitBtn.addEventListener('click', fitMapToOverlayRoutes);
+
+    if (typeof initOverlayRoutes === 'function') {
+        initOverlayRoutes();
+        renderOverlayPanel();
+    }
 }
 
 function updateRouteStyleControls() {
