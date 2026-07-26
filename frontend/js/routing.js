@@ -243,19 +243,55 @@ async function fetchElevationBatch(coordinates) {
     const batchSize = 100;
     const allElevations = [];
 
+    // Try Open-Meteo first, then OpenTopoData as fallback
+    const providers = [
+        {
+            name: 'Open-Meteo',
+            fetch: async (batch) => {
+                const lats = batch.map(c => c[1]).join(',');
+                const lons = batch.map(c => c[0]).join(',');
+                const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Open-Meteo responded ${response.status}`);
+                const data = await response.json();
+                if (!Array.isArray(data.elevation)) throw new Error('Invalid Open-Meteo response');
+                return data.elevation;
+            }
+        },
+        {
+            name: 'OpenTopoData',
+            fetch: async (batch) => {
+                const locations = batch.map(c => `${c[1]},${c[0]}`).join('|');
+                const url = `https://api.opentopodata.org/v1/srtm90m?locations=${locations}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`OpenTopoData responded ${response.status}`);
+                const data = await response.json();
+                if (!Array.isArray(data.results)) throw new Error('Invalid OpenTopoData response');
+                return data.results.map(r => r.elevation);
+            }
+        }
+    ];
+
     for (let i = 0; i < coordinates.length; i += batchSize) {
         const batch = coordinates.slice(i, i + batchSize);
-        const lats = batch.map(c => c[1]).join(',');
-        const lons = batch.map(c => c[0]).join(',');
-        const url = `https://api.open-meteo.com/v1/elevation?latitude=${lats}&longitude=${lons}`;
+        let batchResult = null;
+        let lastError = null;
 
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Elevation API responded with ${response.status}`);
+        for (const provider of providers) {
+            try {
+                batchResult = await provider.fetch(batch);
+                if (!Array.isArray(batchResult) || batchResult.length !== batch.length) {
+                    throw new Error(`${provider.name} returned wrong count`);
+                }
+                break;
+            } catch (err) {
+                lastError = err;
+                console.warn(`Direct ${provider.name} failed:`, err.message);
+            }
+        }
 
-        const data = await response.json();
-        if (!Array.isArray(data.elevation)) throw new Error('Invalid elevation response');
-
-        allElevations.push(...data.elevation);
+        if (!batchResult) throw lastError;
+        allElevations.push(...batchResult);
     }
 
     return allElevations;
