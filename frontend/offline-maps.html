@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="it" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,25 +7,70 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4a90a4">
+    <meta name="theme-color" content="#1e293b">
     <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
 </head>
 <body>
-    <!-- Menu Bar -->
-    <div id="menu-bar">
-        <div class="menu-item" id="menu-back">← Torna all'App</div>
+    <!-- Top Bar -->
+    <div id="top-bar">
+        <div class="app-brand">
+            <svg class="app-brand-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+            <span class="app-brand-text">Route Planner</span>
+            <span class="app-brand-separator">·</span>
+            <span class="app-brand-subtitle">Mappe Offline</span>
+        </div>
+        <div class="top-bar-actions">
+            <button class="top-bar-btn" id="theme-toggle" title="Cambia tema">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-sun">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-moon">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+            </button>
+            <button class="top-bar-btn" id="menu-back" title="Torna all'app">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"/>
+                    <polyline points="12 19 5 12 12 5"/>
+                </svg>
+                <span>Torna all'App</span>
+            </button>
+        </div>
     </div>
 
     <div class="offline-maps-page">
-        <div class="page-header">
-            <h1>Mappe Offline</h1>
-            <p>Scarica le mappe per utilizzarle senza connessione internet</p>
+        <!-- Offline Mode Toggle -->
+        <div class="offline-mode-banner">
+            <div class="offline-mode-info">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <div>
+                    <strong>Modalità Offline</strong>
+                    <p>Usa solo le mappe scaricate localmente, senza connessione internet</p>
+                </div>
+            </div>
+            <label class="toggle-label">
+                <input type="checkbox" id="offline-mode-toggle">
+                <span class="toggle-slider"></span>
+            </label>
         </div>
 
-        <!-- Hierarchical Selector -->
+        <!-- Region Selection -->
         <div class="region-selector">
+            <h2>Seleziona Area</h2>
             <div class="selector-level">
-                <label>Mondo</label>
+                <label>Area</label>
                 <select id="world-select">
                     <option value="">Seleziona...</option>
                     <option value="world">Mondo Intero</option>
@@ -52,16 +97,49 @@
                     <option value="">Seleziona regione...</option>
                 </select>
             </div>
+
+            <!-- Zoom Level Selection -->
+            <div class="zoom-level-controls" id="zoom-controls" style="display: none;">
+                <div class="zoom-level-row">
+                    <div class="zoom-field">
+                        <label>Zoom Minimo</label>
+                        <select id="min-zoom-select">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8" selected>8</option>
+                        </select>
+                    </div>
+                    <div class="zoom-field">
+                        <label>Zoom Massimo</label>
+                        <select id="max-zoom-select">
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12" selected>12</option>
+                            <option value="13">13</option>
+                            <option value="14">14</option>
+                            <option value="15">15</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="tile-count-info" id="tile-count-info"></div>
+            </div>
         </div>
 
         <!-- Map Type Selection -->
         <div class="map-types-section" id="map-types-section" style="display: none;">
-            <h2>Tipi di Mappa</h2>
+            <h2>Tipo di Mappa</h2>
             <div class="map-type-cards">
                 <div class="map-type-card" data-type="full">
                     <div class="card-icon">🗺️</div>
-                    <h3>Mappa Completa</h3>
-                    <p>Mappa topografica completa con tutti i dettagli</p>
+                    <h3>Topografica</h3>
+                    <p>Mappa topografica completa (OpenTopoMap)</p>
                     <div class="download-info">
                         <span class="size-estimate" id="size-full">-- MB</span>
                         <button class="btn primary download-btn" data-type="full">Scarica</button>
@@ -70,8 +148,8 @@
 
                 <div class="map-type-card" data-type="roads">
                     <div class="card-icon">🛣️</div>
-                    <h3>Solo Strade</h3>
-                    <p>Solo rete stradale e percorsi</p>
+                    <h3>Stradale</h3>
+                    <p>Rete stradale e percorsi (OpenStreetMap)</p>
                     <div class="download-info">
                         <span class="size-estimate" id="size-roads">-- MB</span>
                         <button class="btn primary download-btn" data-type="roads">Scarica</button>
@@ -80,8 +158,8 @@
 
                 <div class="map-type-card" data-type="contours">
                     <div class="card-icon">⛰️</div>
-                    <h3>Isoipse e Isobate</h3>
-                    <p>Linee di livello e curve batimetriche</p>
+                    <h3>Isoipse</h3>
+                    <p>Linee di livello e curve (OpenTopoMap)</p>
                     <div class="download-info">
                         <span class="size-estimate" id="size-contours">-- MB</span>
                         <button class="btn primary download-btn" data-type="contours">Scarica</button>
@@ -97,15 +175,20 @@
                 <progress id="download-progress-bar" value="0" max="100"></progress>
                 <div class="progress-info">
                     <span id="download-progress-text">0 / 0 tile</span>
-                    <span id="download-speed">0 MB/s</span>
+                    <span id="download-speed">--</span>
+                    <span id="download-eta">--</span>
                 </div>
             </div>
+            <div class="download-details" id="download-details"></div>
             <button class="btn secondary" id="cancel-download-btn">Annulla Download</button>
         </div>
 
         <!-- Downloaded Maps -->
         <div class="downloaded-maps-section">
-            <h2>Mappe Scaricate</h2>
+            <div class="downloaded-maps-header">
+                <h2>Mappe Scaricate</h2>
+                <span class="storage-usage" id="storage-usage">--</span>
+            </div>
             <div id="downloaded-maps-list"></div>
             <button class="btn danger" id="clear-all-maps">Cancella Tutte le Mappe</button>
         </div>
