@@ -252,7 +252,7 @@ async function updateElevationChart() {
     // Add day background bands with distinct colors
     const dayBoundaries = computeDayBoundaries(routeCoords, elevationData.length);
     dayBoundaries.forEach((boundary, i) => {
-        const dayColor = DAY_COLORS[i % DAY_COLORS.length];
+        const dayColor = getDayColor(i);
         annotations.push({
             type: 'box',
             xMin: boundary.start,

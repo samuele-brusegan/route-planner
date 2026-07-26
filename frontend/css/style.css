@@ -1050,6 +1050,37 @@ body {
     color: var(--text);
 }
 
+.day-stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.day-stat-header h4 {
+    margin: 0;
+}
+
+.day-color-picker {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+    flex-shrink: 0;
+}
+
+.day-color-picker::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+.day-color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+
 .day-stat .day-stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);

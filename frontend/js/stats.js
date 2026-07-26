@@ -143,12 +143,16 @@ function updateStatistics() {
     dailyStatsContainer.innerHTML = '';
     
     AppState.dailyStats.forEach(day => {
-        const dayColor = DAY_COLORS[(day.day - 1) % DAY_COLORS.length];
+        const dayIdx = day.day - 1;
+        const dayColor = getDayColor(dayIdx);
         const dayDiv = document.createElement('div');
         dayDiv.className = 'day-stat';
         dayDiv.style.borderLeftColor = dayColor;
         dayDiv.innerHTML = `
-            <h4 style="color: ${dayColor}">Giorno ${day.day}</h4>
+            <div class="day-stat-header">
+                <h4 style="color: ${dayColor}">Giorno ${day.day}</h4>
+                <input type="color" class="day-color-picker" data-day-idx="${dayIdx}" value="${dayColor}" title="Colore giorno ${day.day}">
+            </div>
             <div class="day-stats-grid">
                 <div class="day-stat-item">
                     Distanza: <span class="day-stat-value">${day.distance} km</span>
@@ -168,5 +172,18 @@ function updateStatistics() {
             </div>
         `;
         dailyStatsContainer.appendChild(dayDiv);
+    });
+
+    // Wire up color pickers
+    dailyStatsContainer.querySelectorAll('.day-color-picker').forEach(picker => {
+        picker.addEventListener('input', (e) => {
+            const idx = parseInt(e.target.dataset.dayIdx);
+            if (!AppState.dayColors) AppState.dayColors = [];
+            AppState.dayColors[idx] = e.target.value;
+            saveToLocalStorage();
+            updateStatistics();
+            if (AppState.route) displayRoute(AppState.route);
+            updateElevationChart();
+        });
     });
 }

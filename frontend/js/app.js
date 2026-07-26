@@ -92,6 +92,14 @@ AppState.pendingMarkerInsertIndex = null;
 AppState.selectedOsmGraphId = null;
 
 const DAY_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#e91e63'];
+AppState.dayColors = [];
+
+function getDayColor(dayIndex) {
+    if (AppState.dayColors && AppState.dayColors[dayIndex]) {
+        return AppState.dayColors[dayIndex];
+    }
+    return DAY_COLORS[dayIndex % DAY_COLORS.length];
+}
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', async () => {
@@ -124,7 +132,8 @@ function saveToLocalStorage() {
         showRoutingWarnings: AppState.showRoutingWarnings,
         showOsmGraph: AppState.showOsmGraph,
         showOsmInspector: AppState.showOsmInspector,
-        routingError: AppState.routingError
+        routingError: AppState.routingError,
+        dayColors: AppState.dayColors || []
     };
     localStorage.setItem('routePlannerData', JSON.stringify(data));
 }
@@ -193,6 +202,7 @@ async function loadFromLocalStorage() {
         AppState.showOsmGraph = parsed.showOsmGraph || false;
         AppState.showOsmInspector = parsed.showOsmInspector || false;
         AppState.routingError = parsed.routingError || null;
+        AppState.dayColors = parsed.dayColors || [];
         applyRouteStyle();
 
         const savedPanelVisibility = loadPanelVisibilityFromLocalStorage();

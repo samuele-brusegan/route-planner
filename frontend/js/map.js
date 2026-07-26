@@ -928,8 +928,10 @@ function displayRoute(routeData) {
         // Split route into day segments and color each differently
         const segments = computeRouteDaySegments(routeData.coordinates, nightMarkers);
         segments.forEach((seg, i) => {
-            const dayColor = DAY_COLORS[i % DAY_COLORS.length];
-            const segCoords = seg.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
+            const dayColor = getDayColor(i);
+            // Apply small perpendicular offset so overlapping days are both visible
+            const offsetSegs = applyPerpendicularOffset(seg, (i - (segments.length - 1) / 2) * 6);
+            const segCoords = offsetSegs.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
             const feature = new ol.Feature({
                 geometry: new ol.geom.LineString(segCoords)
             });
@@ -979,6 +981,42 @@ function computeRouteDaySegments(routeCoords, nightMarkers) {
     }
 
     return segments;
+}
+
+// Apply a perpendicular offset (in meters) to a list of [lon, lat] coordinates
+// so overlapping route segments from different days are both visible
+function applyPerpendicularOffset(coords, offsetMeters) {
+    if (offsetMeters === 0 || coords.length < 2) return coords;
+
+    const offsetDeg = offsetMeters / 111000; // approximate meters-to-degrees
+    const result = [];
+
+    for (let i = 0; i < coords.length; i++) {
+        let dx, dy;
+        if (i === 0) {
+            dx = coords[1][0] - coords[0][0];
+            dy = coords[1][1] - coords[0][1];
+        } else if (i === coords.length - 1) {
+            dx = coords[i][0] - coords[i - 1][0];
+            dy = coords[i][1] - coords[i - 1][1];
+        } else {
+            dx = coords[i + 1][0] - coords[i - 1][0];
+            dy = coords[i + 1][1] - coords[i - 1][1];
+        }
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len === 0) {
+            result.push([coords[i][0], coords[i][1]]);
+            continue;
+        }
+        // Perpendicular vector (normalized) * offset
+        const perpX = -dy / len * offsetDeg;
+        const perpY = dx / len * offsetDeg;
+        // Adjust longitude offset by latitude factor
+        const latRad = coords[i][1] * Math.PI / 180;
+        result.push([coords[i][0] + perpX / Math.cos(latRad), coords[i][1] + perpY]);
+    }
+
+    return result;
 }
 
 // Clear route from map
