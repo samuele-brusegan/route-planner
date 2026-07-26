@@ -223,10 +223,11 @@ async function updateElevationChart() {
     const annotations = [];
     const routeCoords = AppState.route.coordinates;
 
+    let prevIdx = 0;
     nightMarkers.forEach((marker) => {
-        let closestIdx = 0;
+        let closestIdx = prevIdx;
         let closestDist = Infinity;
-        for (let i = 0; i < routeCoords.length; i++) {
+        for (let i = prevIdx; i < routeCoords.length; i++) {
             const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
             if (d < closestDist) {
                 closestDist = d;
@@ -234,6 +235,7 @@ async function updateElevationChart() {
             }
         }
         const routeIndex = Math.round(closestIdx * (elevationData.length / routeCoords.length));
+        prevIdx = closestIdx;
         annotations.push({
             type: 'line',
             xMin: routeIndex,
@@ -307,9 +309,9 @@ function computeDayBoundaries(routeCoords, elevationLength) {
 
     let prevIdx = 0;
     nightMarkers.forEach((marker) => {
-        let closestIdx = 0;
+        let closestIdx = prevIdx;
         let closestDist = Infinity;
-        for (let i = 0; i < routeCoords.length; i++) {
+        for (let i = prevIdx; i < routeCoords.length; i++) {
             const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
             if (d < closestDist) {
                 closestDist = d;

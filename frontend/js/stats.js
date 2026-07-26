@@ -85,8 +85,8 @@ function calculateDayStats(startMarkerIndex, endMarkerIndex, elevationData) {
         return { distance: '0.00', ascent: 0, descent: 0, time: '0h 0m' };
     }
 
-    const startIdx = findClosestRouteIndex(coords, startMarker.lon, startMarker.lat);
-    const endIdx = findClosestRouteIndex(coords, endMarker.lon, endMarker.lat);
+    const startIdx = findClosestRouteIndex(coords, startMarker.lon, startMarker.lat, 0);
+    const endIdx = findClosestRouteIndex(coords, endMarker.lon, endMarker.lat, startIdx);
     const from = Math.min(startIdx, endIdx);
     const to = Math.max(startIdx, endIdx);
 
@@ -118,10 +118,10 @@ function calculateDayStats(startMarkerIndex, endMarkerIndex, elevationData) {
     };
 }
 
-function findClosestRouteIndex(coords, lon, lat) {
-    let closestIdx = 0;
+function findClosestRouteIndex(coords, lon, lat, minIdx = 0) {
+    let closestIdx = minIdx;
     let closestDist = Infinity;
-    for (let i = 0; i < coords.length; i++) {
+    for (let i = minIdx; i < coords.length; i++) {
         const d = Math.pow(coords[i][0] - lon, 2) + Math.pow(coords[i][1] - lat, 2);
         if (d < closestDist) {
             closestDist = d;

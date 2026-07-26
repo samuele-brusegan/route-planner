@@ -963,9 +963,9 @@ function computeRouteDaySegments(routeCoords, nightMarkers) {
     let startIdx = 0;
 
     nightMarkers.forEach((marker) => {
-        let closestIdx = 0;
+        let closestIdx = startIdx;
         let closestDist = Infinity;
-        for (let i = 0; i < routeCoords.length; i++) {
+        for (let i = startIdx; i < routeCoords.length; i++) {
             const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
             if (d < closestDist) {
                 closestDist = d;
