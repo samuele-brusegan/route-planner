@@ -7,7 +7,7 @@
 //   POST /tiles/build           -> { jobId }
 //   GET  /tiles/jobs/:id        -> { phase, progress, message, error }
 
-const ROUTING_BASE_URL = window.ROUTING_API_URL || `${window.location.protocol}//${window.location.hostname}:8002`;
+const ROUTING_BASE_URL = window.ROUTING_API_URL || '/api/routing';
 
 let _jobPollHandle = null;
 let _statusPollHandle = null;

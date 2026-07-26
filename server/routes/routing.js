@@ -2,8 +2,8 @@ const express = require('express');
 const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
-const app = express();
-const PORT = 8002;
+const router = express.Router();
+
 const VALHALLA_REMOTE_URL = process.env.VALHALLA_REMOTE_URL || 'https://valhalla1.openstreetmap.de/route';
 const VALHALLA_LOCAL_URL = process.env.VALHALLA_LOCAL_URL || 'http://valhalla:8002/route';
 const VALHALLA_ADMIN_URL = process.env.VALHALLA_ADMIN_URL || 'http://valhalla:8003';
@@ -14,6 +14,12 @@ const VALHALLA_ONLINE_API_URL = process.env.VALHALLA_ONLINE_API_URL || VALHALLA_
 const VALHALLA_STATUS_URL = process.env.VALHALLA_STATUS_URL || buildStatusUrl(VALHALLA_API_URL);
 const VALHALLA_TILE_DIR = process.env.VALHALLA_TILE_DIR || '/data/valhalla_tiles';
 const VALHALLA_TILE_EXTRACT = process.env.VALHALLA_TILE_EXTRACT || '/data/valhalla_tiles.tar';
+
+const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 18);
+const RELAXED_SNAP_RADIUS_METERS = Number(process.env.RELAXED_SNAP_RADIUS_METERS || 55);
+const MAX_HIKING_DIFFICULTY = clampNumber(process.env.MAX_HIKING_DIFFICULTY, 0, 6, 6);
+const GRAPHHOPPER_API_URL = process.env.GRAPHHOPPER_API_URL || 'https://graphhopper.com/api/1/route';
+const GRAPHHOPPER_API_KEY = process.env.GRAPHHOPPER_API_KEY || '';
 
 // Initial mode: env override → state file → 'remote'
 function readModeFromFile() {
@@ -49,26 +55,10 @@ function getValhallaApiUrl() {
 function isLocalMode() {
     return currentMode === 'local';
 }
-const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 18);
-const RELAXED_SNAP_RADIUS_METERS = Number(process.env.RELAXED_SNAP_RADIUS_METERS || 55);
-const MAX_HIKING_DIFFICULTY = clampNumber(process.env.MAX_HIKING_DIFFICULTY, 0, 6, 6);
-const GRAPHHOPPER_API_URL = process.env.GRAPHHOPPER_API_URL || 'https://graphhopper.com/api/1/route';
-const GRAPHHOPPER_API_KEY = process.env.GRAPHHOPPER_API_KEY || '';
 
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+router.use(express.json({ limit: '1mb' }));
 
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(204);
-    }
-
-    next();
-});
-app.use(express.json({ limit: '1mb' }));
-
-app.post('/route', async (req, res) => {
+router.post('/route', async (req, res) => {
     try {
         const {
             locations,
@@ -77,7 +67,7 @@ app.post('/route', async (req, res) => {
             valhalla_source = 'local',
             directions_options = {}
         } = req.body;
-        
+
         if (!locations || locations.length < 2) {
             return res.status(400).json({ error: 'At least 2 locations required' });
         }
@@ -94,7 +84,7 @@ app.post('/route', async (req, res) => {
     }
 });
 
-app.get('/status', async (req, res) => {
+router.get('/status', async (req, res) => {
     try {
         const useLocal = isLocalMode();
         const valhalla = useLocal ? await getLocalValhallaStatus() : { reachable: true, tilesReady: true };
@@ -129,17 +119,16 @@ app.get('/status', async (req, res) => {
 });
 
 // === Mode management ===
-app.get('/mode', (req, res) => {
+router.get('/mode', (req, res) => {
     res.json({ mode: currentMode });
 });
 
-app.post('/mode', async (req, res) => {
+router.post('/mode', async (req, res) => {
     const requested = req.body && req.body.mode;
     if (requested !== 'local' && requested !== 'remote') {
         return res.status(400).json({ error: "mode must be 'local' or 'remote'" });
     }
     if (requested === 'local') {
-        // Validate that local engine has tiles before switching
         try {
             const status = await adminFetch('/tiles/status');
             if (!status || !status.hasLocalTiles) {
@@ -178,7 +167,7 @@ async function adminFetch(path, options = {}) {
     return data;
 }
 
-app.get('/tiles/status', async (req, res) => {
+router.get('/tiles/status', async (req, res) => {
     try {
         const data = await adminFetch('/tiles/status');
         res.json(data);
@@ -187,7 +176,7 @@ app.get('/tiles/status', async (req, res) => {
     }
 });
 
-app.get('/tiles/regions', async (req, res) => {
+router.get('/tiles/regions', async (req, res) => {
     try {
         const data = await adminFetch('/tiles/regions');
         res.json(data);
@@ -196,7 +185,7 @@ app.get('/tiles/regions', async (req, res) => {
     }
 });
 
-app.post('/tiles/build', async (req, res) => {
+router.post('/tiles/build', async (req, res) => {
     try {
         const data = await adminFetch('/tiles/build', { method: 'POST', body: { region: req.body && req.body.region } });
         res.status(202).json(data);
@@ -205,7 +194,7 @@ app.post('/tiles/build', async (req, res) => {
     }
 });
 
-app.get('/tiles/jobs/:id', async (req, res) => {
+router.get('/tiles/jobs/:id', async (req, res) => {
     try {
         const data = await adminFetch('/tiles/jobs/' + encodeURIComponent(req.params.id));
         res.json(data);
@@ -214,7 +203,7 @@ app.get('/tiles/jobs/:id', async (req, res) => {
     }
 });
 
-app.post('/graph', async (req, res) => {
+router.post('/graph', async (req, res) => {
     try {
         const {
             locations = [],
@@ -249,6 +238,13 @@ app.post('/graph', async (req, res) => {
         res.status(500).json({ error: 'Failed to load OSM graph' });
     }
 });
+
+// === Health check ===
+router.get('/health', (req, res) => {
+    res.json({ status: 'ok', service: 'routing' });
+});
+
+// === Helper functions ===
 
 function buildGraphSamplePoints(locations, routeCoordinates, diagnostics) {
     const points = [];
@@ -1118,7 +1114,7 @@ function getLegDistanceKm(leg) {
 function buildStraightLineRoute(locations, profile = 'walking', directionsOptions = {}, engine = 'fallback') {
     const walkingSpeedKmh = profile === 'cycling' ? 15 : 5.1;
     const shape = locations.map(loc => `${loc.lon},${loc.lat}`);
-    
+
     let totalDistance = 0;
     for (let i = 0; i < locations.length - 1; i++) {
         totalDistance += haversineDistance(
@@ -1128,19 +1124,19 @@ function buildStraightLineRoute(locations, profile = 'walking', directionsOption
     }
 
     const totalTimeSeconds = Math.round((totalDistance / walkingSpeedKmh) * 3600);
-    
+
     const maneuvers = locations.map((loc, index) => ({
-        instruction: index === 0 ? 'Partenza' : 
-                    index === locations.length - 1 ? 'Arrivo' : 
+        instruction: index === 0 ? 'Partenza' :
+                    index === locations.length - 1 ? 'Arrivo' :
                     `Procedi verso il punto ${index + 1}`,
-        length: index < locations.length - 1 ? 
+        length: index < locations.length - 1 ?
                 haversineDistance(
                     locations[index].lat, locations[index].lon,
                     locations[index + 1].lat, locations[index + 1].lon
                 ) * 1000 : 0,
         type: 'straight'
     }));
-    
+
     return {
         trip: {
             summary: {
@@ -1365,10 +1361,9 @@ function createRoutingError(code, message, statusCode = 503, details = null) {
     error.details = details;
     return error;
 }
-        
-// Haversine distance calculation (in km)
+
 function haversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -1378,11 +1373,4 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', service: 'routing' });
-});
-
-app.listen(PORT, () => {
-    console.log(`Routing service running on port ${PORT}`);
-});
+module.exports = router;

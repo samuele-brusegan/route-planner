@@ -4,7 +4,7 @@ if (typeof showToast === 'undefined') {
 }
 
 // Map Manager - Region download and offline mode management
-const EXPORT_API_URL = `${window.location.protocol}//${window.location.hostname}:3001`;
+const EXPORT_API_URL = '/api/export';
 let availableRegions = [];
 let downloadStatuses = {};
 let offlineMode = false;

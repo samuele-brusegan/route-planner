@@ -21,6 +21,12 @@ function initUI() {
     
     // Initialize chart
     initElevationChart();
+
+    // Initialize search
+    if (typeof initSearch === 'function') initSearch();
+
+    // Initialize POI layer
+    if (typeof initPoiLayer === 'function') initPoiLayer();
 }
 
 // Theme management
@@ -477,6 +483,12 @@ function setupButtons() {
     document.getElementById('export-map-png').addEventListener('click', exportMapPNG);
     document.getElementById('export-map-pdf').addEventListener('click', exportMapPDF);
     document.getElementById('export-directions-pdf').addEventListener('click', exportDirectionsPDF);
+
+    const importGpxBtn = document.getElementById('import-gpx');
+    if (importGpxBtn) importGpxBtn.addEventListener('click', () => triggerGPXImport());
+
+    const shareRouteBtn = document.getElementById('share-route');
+    if (shareRouteBtn) shareRouteBtn.addEventListener('click', () => copyShareUrl());
 }
 
 function updateRouteStyleControls() {

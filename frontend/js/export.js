@@ -1,12 +1,23 @@
 // Export functionality
-const EXPORT_API_URL = window.EXPORT_API_URL || `${window.location.protocol}//${window.location.hostname}:3001`;
+const EXPORT_API_URL = window.EXPORT_API_URL || '/api/export';
 
 // Export GPX
+function getExportRouteName() {
+    const input = document.getElementById('export-route-name');
+    return (input && input.value.trim()) ? input.value.trim() : null;
+}
+
+function sanitizeFilename(name) {
+    return name.replace(/[\/:*?"<>|]/g, '_').replace(/\s+/g, '-').toLowerCase();
+}
+
 async function exportGPX(splitByDays = false) {
     if (!AppState.route || AppState.markers.length < 2) {
         showExportToast('Nessuna route da esportare.', 'warning');
         return;
     }
+
+    const customName = getExportRouteName();
 
     try {
         if (splitByDays) {
@@ -14,15 +25,23 @@ async function exportGPX(splitByDays = false) {
             warnIfSplitLooksInvalid(daySegments);
 
             for (const segment of daySegments) {
-                const dayGPX = await generateGPXContent(segment.route, segment.markers, segment.name);
-                downloadGPX(dayGPX, `route-giorno-${segment.day}.gpx`);
+                const segName = customName ? `${customName} — ${segment.name}` : segment.name;
+                const dayGPX = await generateGPXContent(segment.route, segment.markers, segName);
+                const fname = customName
+                    ? `${sanitizeFilename(customName)}-giorno-${segment.day}.gpx`
+                    : `route-giorno-${segment.day}.gpx`;
+                downloadGPX(dayGPX, fname);
             }
             showExportToast(`Esportati ${daySegments.length} file GPX per giorni.`, 'info');
             return;
         }
 
-        const gpxContent = await generateGPXContent(AppState.route, AppState.markers, 'Route Completa');
-        downloadGPX(gpxContent, 'route-completa.gpx');
+        const routeName = customName || 'Route Completa';
+        const gpxContent = await generateGPXContent(AppState.route, AppState.markers, routeName);
+        const fname = customName
+            ? `${sanitizeFilename(customName)}.gpx`
+            : 'route-completa.gpx';
+        downloadGPX(gpxContent, fname);
         showExportToast('GPX completo esportato.', 'info');
     } catch (error) {
         console.error('GPX export error:', error);
@@ -43,7 +62,12 @@ async function generateGPXContent(route, markers, name) {
   xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
     <name>${escapeXml(name)}</name>
+    <desc>Distanza: ${AppState.stats?.totalDistance?.toFixed(2) || '0'} km, Dislivello+: ${AppState.stats?.totalAscent || 0} m, Dislivello-: ${AppState.stats?.totalDescent || 0} m, Tempo: ${AppState.stats?.totalTime || '-'}, Munter: ${AppState.stats?.munterTime || '-'}</desc>
+    <author>Route Planner</author>
     <time>${date}</time>
+    <link href="${escapeXml(window.location.origin)}">
+      <text>Route Planner</text>
+    </link>
   </metadata>
   
   <trk>
@@ -281,12 +305,12 @@ async function exportMapPNG() {
     try {
         const dataUrl = await exportMapAsImage('png');
         if (dataUrl) {
-            const response = await fetch(`${EXPORT_API_URL}/export/map/png`, {
+            const response = await fetch(`${EXPORT_API_URL}/map/png`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ imageDataUrl: dataUrl })
+                body: JSON.stringify({ imageDataUrl: dataUrl, title: getExportRouteName() || 'Route Planner - Mappa' })
             });
 
             if (!response.ok) {
@@ -319,14 +343,14 @@ async function exportMapPDF() {
             return;
         }
 
-        const response = await fetch(`${EXPORT_API_URL}/export/map/pdf`, {
+        const response = await fetch(`${EXPORT_API_URL}/map/pdf`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 imageDataUrl: dataUrl,
-                title: 'Route Planner - Mappa'
+                title: getExportRouteName() || 'Route Planner - Mappa'
             })
         });
 
@@ -338,7 +362,10 @@ async function exportMapPDF() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `mappa-${new Date().toISOString().split('T')[0]}.pdf`;
+        const mapFname = getExportRouteName()
+            ? `${sanitizeFilename(getExportRouteName())}-mappa.pdf`
+            : `mappa-${new Date().toISOString().split('T')[0]}.pdf`;
+        a.download = mapFname;
         a.click();
         URL.revokeObjectURL(url);
         showExportToast('Mappa PDF esportata.', 'info');
@@ -351,7 +378,7 @@ async function exportMapPDF() {
 // Export directions as PDF
 async function exportDirectionsPDF() {
     try {
-        const response = await fetch(`${EXPORT_API_URL}/export/directions/pdf`, {
+        const response = await fetch(`${EXPORT_API_URL}/directions/pdf`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -359,7 +386,8 @@ async function exportDirectionsPDF() {
             body: JSON.stringify({
                 directions: AppState.directions,
                 stats: AppState.stats,
-                dailyStats: AppState.dailyStats
+                dailyStats: AppState.dailyStats,
+                title: getExportRouteName() || 'Route Planner - Indicazioni'
             })
         });
         
@@ -371,7 +399,10 @@ async function exportDirectionsPDF() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `indicazioni-${new Date().toISOString().split('T')[0]}.pdf`;
+        const dirFname = getExportRouteName()
+            ? `${sanitizeFilename(getExportRouteName())}-indicazioni.pdf`
+            : `indicazioni-${new Date().toISOString().split('T')[0]}.pdf`;
+        a.download = dirFname;
         a.click();
         URL.revokeObjectURL(url);
         showExportToast('PDF indicazioni esportato.', 'info');

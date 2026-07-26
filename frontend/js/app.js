@@ -95,6 +95,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initMap();
     initUI();
     await loadFromLocalStorage();
+    if (typeof loadRouteFromUrl === 'function') {
+        await loadRouteFromUrl();
+    }
 });
 
 // Save to localStorage
@@ -340,5 +343,29 @@ function calculateTime(distance, ascent) {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = Math.round(totalMinutes % 60);
     
+    return `${hours}h ${minutes}m`;
+}
+
+// Calculate time estimate using Munter's formula (DIN 33466)
+// Time = distance_km/4 + ascent_m/400 (in hours)
+function calculateMunterTime(distanceKm, ascentM, descentM) {
+    let munterHours = (distanceKm / 4) + (ascentM / 400);
+
+    // Add 10% for steep descents
+    if (descentM > ascentM && descentM > 300) {
+        munterHours *= 1.1;
+    }
+
+    // Add 20% for high average gradient (>30%)
+    if (distanceKm > 0 && ascentM > 0) {
+        const avgGradient = ascentM / (distanceKm * 1000);
+        if (avgGradient > 0.3) {
+            munterHours *= 1.2;
+        }
+    }
+
+    const hours = Math.floor(munterHours);
+    const minutes = Math.round((munterHours - hours) * 60);
+
     return `${hours}h ${minutes}m`;
 }

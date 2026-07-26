@@ -1,30 +1,21 @@
 const express = require('express');
 const PDFDocument = require('pdfkit');
+const router = express.Router();
+
 const {
     getRegions,
     downloadAndBuildRegion,
     getStatus,
     getAllStatuses,
     deleteRegionData
-} = require('./regions-manager');
-const { getTile, getMetadata, closeAllConnections } = require('./tiles-server');
-const app = express();
-const PORT = 3000;
+} = require('../utils/regions-manager');
+const { getTile, getMetadata } = require('../utils/tiles-server');
 
-app.use(express.json({ limit: '25mb' }));
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+router.use(express.json({ limit: '25mb' }));
 
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(204);
-    }
+// --- Export endpoints ---
 
-    next();
-});
-
-app.post('/export/map/png', async (req, res) => {
+router.post('/map/png', async (req, res) => {
     try {
         const { imageDataUrl } = req.body;
         if (!imageDataUrl || typeof imageDataUrl !== 'string') {
@@ -43,7 +34,7 @@ app.post('/export/map/png', async (req, res) => {
     }
 });
 
-app.post('/export/map/pdf', async (req, res) => {
+router.post('/map/pdf', async (req, res) => {
     try {
         const { imageDataUrl, title = 'Route Planner' } = req.body;
         if (!imageDataUrl || typeof imageDataUrl !== 'string') {
@@ -78,26 +69,23 @@ app.post('/export/map/pdf', async (req, res) => {
     }
 });
 
-// Export directions as PDF
-app.post('/export/directions/pdf', async (req, res) => {
+router.post('/directions/pdf', async (req, res) => {
     try {
         const { directions, stats, dailyStats } = req.body;
-        
+
         const doc = new PDFDocument({ margin: 50 });
         const chunks = [];
-        
+
         doc.on('data', chunk => chunks.push(chunk));
         doc.on('end', () => {
             const pdfBuffer = Buffer.concat(chunks);
             res.set('Content-Type', 'application/pdf');
             res.send(pdfBuffer);
         });
-        
-        // Add title
+
         doc.fontSize(24).text('Indicazioni Route', { align: 'center' });
         doc.moveDown();
-        
-        // Add statistics
+
         doc.fontSize(14).text('Statistiche Generali:', { underline: true });
         doc.fontSize(12);
         doc.text(`Lunghezza Totale: ${stats.totalDistance} km`);
@@ -105,8 +93,7 @@ app.post('/export/directions/pdf', async (req, res) => {
         doc.text(`Dislivello Negativo: ${stats.totalDescent} m`);
         doc.text(`Tempo Stimato: ${stats.totalTime}`);
         doc.moveDown();
-        
-        // Add daily statistics
+
         if (dailyStats && dailyStats.length > 0) {
             doc.fontSize(14).text('Statistiche per Giorno:', { underline: true });
             doc.fontSize(12);
@@ -119,8 +106,7 @@ app.post('/export/directions/pdf', async (req, res) => {
                 doc.moveDown();
             });
         }
-        
-        // Add directions
+
         doc.fontSize(14).text('Indicazioni:', { underline: true });
         doc.fontSize(12);
         directions.forEach((dir, index) => {
@@ -130,7 +116,7 @@ app.post('/export/directions/pdf', async (req, res) => {
             }
             doc.moveDown();
         });
-        
+
         doc.end();
     } catch (error) {
         console.error('Directions PDF export error:', error);
@@ -138,13 +124,9 @@ app.post('/export/directions/pdf', async (req, res) => {
     }
 });
 
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok' });
-});
+// --- Region management endpoints ---
 
-// Get available regions from Geofabrik
-app.get('/regions', async (req, res) => {
+router.get('/regions', async (req, res) => {
     try {
         const filterArea = req.query.area || null;
         const regions = await getRegions(filterArea);
@@ -155,16 +137,14 @@ app.get('/regions', async (req, res) => {
     }
 });
 
-// Download and build region tiles
-app.post('/download-region', async (req, res) => {
+router.post('/download-region', async (req, res) => {
     try {
         const { regionId, url, includeVectorTiles = false, includeDEM = false, bounds = null } = req.body;
-        
+
         if (!regionId || !url) {
             return res.status(400).json({ error: 'regionId and url are required' });
         }
-        
-        // Start async download and build
+
         downloadAndBuildRegion(regionId, url, includeVectorTiles, includeDEM, bounds)
             .then(result => {
                 console.log(`Region ${regionId} download completed:`, result);
@@ -172,8 +152,8 @@ app.post('/download-region', async (req, res) => {
             .catch(error => {
                 console.error(`Region ${regionId} download failed:`, error);
             });
-        
-        res.json({ 
+
+        res.json({
             message: 'Download started',
             regionId,
             status: getStatus(regionId)
@@ -184,20 +164,18 @@ app.post('/download-region', async (req, res) => {
     }
 });
 
-// Get status of a specific download
-app.get('/status/:regionId', (req, res) => {
+router.get('/status/:regionId', (req, res) => {
     const { regionId } = req.params;
     const status = getStatus(regionId);
     res.json({ regionId, status });
 });
 
-// Get all download statuses
-app.get('/status', (req, res) => {
+router.get('/status', (req, res) => {
     const statuses = getAllStatuses();
     res.json({ statuses });
 });
 
-app.delete('/regions/:regionId', async (req, res) => {
+router.delete('/regions/:regionId', async (req, res) => {
     try {
         const { regionId } = req.params;
         const result = await deleteRegionData(regionId);
@@ -208,12 +186,13 @@ app.delete('/regions/:regionId', async (req, res) => {
     }
 });
 
-// Serve vector tiles from MBTiles
-app.get('/tiles/:regionId/:z/:x/:y.pbf', async (req, res) => {
+// --- Vector tiles ---
+
+router.get('/tiles/:regionId/:z/:x/:y.pbf', async (req, res) => {
     try {
         const { regionId, z, x, y } = req.params;
         const tileData = await getTile(regionId, parseInt(z), parseInt(x), parseInt(y));
-        
+
         if (tileData) {
             res.set('Content-Type', 'application/x-protobuf');
             res.set('Content-Encoding', 'gzip');
@@ -227,12 +206,11 @@ app.get('/tiles/:regionId/:z/:x/:y.pbf', async (req, res) => {
     }
 });
 
-// Get MBTiles metadata
-app.get('/tiles/:regionId/metadata', async (req, res) => {
+router.get('/tiles/:regionId/metadata', async (req, res) => {
     try {
         const { regionId } = req.params;
         const metadata = await getMetadata(regionId);
-        
+
         if (metadata) {
             res.json({ metadata });
         } else {
@@ -244,12 +222,4 @@ app.get('/tiles/:regionId/metadata', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Export service running on port ${PORT}`);
-});
-
-// Cleanup on exit
-process.on('SIGTERM', async () => {
-    closeAllConnections();
-    process.exit(0);
-});
+module.exports = router;

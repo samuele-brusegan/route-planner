@@ -7,7 +7,8 @@ async function calculateStatistics() {
             totalDistance: 0,
             totalAscent: 0,
             totalDescent: 0,
-            totalTime: 0
+            totalTime: 0,
+            munterTime: 0
         };
         AppState.dailyStats = [];
         return;
@@ -16,24 +17,17 @@ async function calculateStatistics() {
     // Get elevation data
     const elevationData = await getElevationData(AppState.route.coordinates);
     
-    // Calculate elevation gain/loss
-    let ascent = 0;
-    let descent = 0;
+    // Calculate elevation gain/loss with smoothing to reduce DEM noise
+    const { ascent, descent } = smoothAndCalculate(elevationData, { windowSize: 5, minThreshold: 5 });
     
-    for (let i = 1; i < elevationData.length; i++) {
-        const diff = elevationData[i].elevation - elevationData[i - 1].elevation;
-        if (diff > 0) {
-            ascent += diff;
-        } else {
-            descent += Math.abs(diff);
-        }
-    }
+    const distanceKm = AppState.route.distance / 1000;
     
     AppState.stats = {
-        totalDistance: AppState.route.distance / 1000, // Convert to km
-        totalAscent: Math.round(ascent),
-        totalDescent: Math.round(descent),
-        totalTime: calculateTime(AppState.route.distance / 1000, ascent)
+        totalDistance: distanceKm,
+        totalAscent: ascent,
+        totalDescent: descent,
+        totalTime: calculateTime(distanceKm, ascent),
+        munterTime: calculateMunterTime(distanceKm, ascent, descent)
     };
     
     // Calculate daily statistics (split by "punto notte" markers)
@@ -50,7 +44,8 @@ function calculateDailyStats(elevationData) {
             distance: AppState.stats.totalDistance,
             ascent: AppState.stats.totalAscent,
             descent: AppState.stats.totalDescent,
-            time: AppState.stats.totalTime
+            time: AppState.stats.totalTime,
+            munterTime: AppState.stats.munterTime
         }];
         return;
     }
@@ -108,18 +103,18 @@ function calculateDayStats(startMarkerIndex, endMarkerIndex, elevationData) {
     if (elevationData && elevationData.length > 0) {
         const elevFrom = Math.min(from, elevationData.length - 1);
         const elevTo = Math.min(to, elevationData.length - 1);
-        for (let i = elevFrom + 1; i <= elevTo; i++) {
-            const diff = elevationData[i].elevation - elevationData[i - 1].elevation;
-            if (diff > 0) ascent += diff;
-            else descent += Math.abs(diff);
-        }
+        const segmentElev = elevationData.slice(elevFrom, elevTo + 1);
+        const smoothed = smoothAndCalculate(segmentElev, { windowSize: 5, minThreshold: 5 });
+        ascent = smoothed.ascent;
+        descent = smoothed.descent;
     }
 
     return {
         distance: segmentDistance.toFixed(2),
         ascent: Math.round(ascent),
         descent: Math.round(descent),
-        time: calculateTime(segmentDistance, Math.round(ascent))
+        time: calculateTime(segmentDistance, Math.round(ascent)),
+        munterTime: calculateMunterTime(segmentDistance, Math.round(ascent), Math.round(descent))
     };
 }
 
@@ -141,7 +136,7 @@ function updateStatistics() {
     document.getElementById('total-distance').textContent = AppState.stats.totalDistance.toFixed(2) + ' km';
     document.getElementById('total-ascent').textContent = AppState.stats.totalAscent + ' m';
     document.getElementById('total-descent').textContent = AppState.stats.totalDescent + ' m';
-    document.getElementById('total-time').textContent = AppState.stats.totalTime;
+    document.getElementById('total-time').textContent = AppState.stats.totalTime + ' (Munter: ' + (AppState.stats.munterTime || '-') + ')';
     
     // Update daily stats
     const dailyStatsContainer = document.getElementById('daily-stats');
@@ -164,6 +159,9 @@ function updateStatistics() {
                 </div>
                 <div class="day-stat-item">
                     Tempo: <span class="day-stat-value">${day.time}</span>
+                </div>
+                <div class="day-stat-item">
+                    Munter: <span class="day-stat-value">${day.munterTime || '-'}</span>
                 </div>
             </div>
         `;

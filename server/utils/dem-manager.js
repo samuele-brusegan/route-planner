@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 const DATA_DIR = '/data';
-const ROUTING_CONTAINER = 'route-planner-routing-1';
+const VALHALLA_ADMIN_URL = process.env.VALHALLA_ADMIN_URL || 'http://valhalla:8003';
 
 // Download DEM (Digital Elevation Model) data for a region
 async function downloadDEM(regionId, bounds) {
@@ -90,44 +90,24 @@ async function downloadDEMTile(tileName, demDir) {
     });
 }
 
-// Build elevation tiles using Valhalla's skadi tools
+// Build elevation tiles via Valhalla admin server HTTP API
 async function buildElevationTiles(demDir) {
-    return new Promise((resolve, reject) => {
-        const elevationDir = path.join(DATA_DIR, 'elevation_tiles');
-        
-        // Execute valhalla_build_elevation in routing container
-        const dockerCmd = [
-            'docker', 'exec', ROUTING_CONTAINER,
-            'valhalla_build_elevation',
-            '--input', demDir,
-            '--output', elevationDir
-        ];
-        
-        const process = spawn(dockerCmd[0], dockerCmd.slice(1));
+    try {
+        const response = await fetch(`${VALHALLA_ADMIN_URL}/elevation/build`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inputDir: demDir, outputDir: path.join(DATA_DIR, 'elevation_tiles') }),
+            signal: AbortSignal.timeout(300000)
+        });
 
-        process.on('error', () => {
-            console.warn('Failed to start elevation tile build');
-            resolve(elevationDir);
-        });
-        
-        process.stdout.on('data', (data) => {
-            console.log(`Elevation build: ${data}`);
-        });
-        
-        process.stderr.on('data', (data) => {
-            console.error(`Elevation build error: ${data}`);
-        });
-        
-        process.on('close', (code) => {
-            if (code === 0) {
-                resolve(elevationDir);
-            } else {
-                // Elevation data is optional, don't fail
-                console.warn(`Elevation build failed with code ${code}`);
-                resolve(elevationDir);
-            }
-        });
-    });
+        if (!response.ok) {
+            console.warn(`Elevation build via admin failed: ${response.status}`);
+        }
+    } catch (error) {
+        console.warn('Elevation build via admin failed:', error.message);
+    }
+
+    return path.join(DATA_DIR, 'elevation_tiles');
 }
 
 module.exports = {

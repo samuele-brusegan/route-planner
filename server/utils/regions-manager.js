@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
@@ -8,7 +7,7 @@ const { downloadDEM } = require('./dem-manager');
 
 const GEOFABRIK_INDEX_URL = 'https://download.geofabrik.de/index-v1.json';
 const DATA_DIR = '/data';
-const VALHALLA_CONTAINER = process.env.VALHALLA_CONTAINER || 'route-planner-valhalla-1';
+const VALHALLA_ADMIN_URL = process.env.VALHALLA_ADMIN_URL || 'http://valhalla:8003';
 const VALHALLA_STATUS_URL = process.env.VALHALLA_STATUS_URL || 'http://valhalla:8002/status';
 const VALHALLA_CONFIG_PATH = process.env.VALHALLA_CONFIG_PATH || '/data/valhalla.generated.json';
 const VALHALLA_TILE_DIR = process.env.VALHALLA_TILE_DIR || '/data/valhalla_tiles';
@@ -108,7 +107,7 @@ async function downloadPBF(regionId, url) {
     }
 }
 
-// Build Valhalla tiles
+// Build Valhalla tiles via admin server HTTP API (no docker.sock needed)
 async function buildValhallaTiles(regionId, pbfPath) {
     downloadStatus.set(regionId, {
         status: 'building_tiles',
@@ -116,90 +115,58 @@ async function buildValhallaTiles(regionId, pbfPath) {
         stage: 'Generazione tile Valhalla locale'
     });
 
-    await runDockerCommand([
-        'exec',
-        VALHALLA_CONTAINER,
-        'valhalla_build_tiles',
-        '-c',
-        VALHALLA_CONFIG_PATH,
-        pbfPath
-    ], regionId, 'building_tiles', 'Generazione tile Valhalla locale');
-
-    await runDockerCommand([
-        'exec',
-        VALHALLA_CONTAINER,
-        'valhalla_build_extract',
-        '-c',
-        VALHALLA_CONFIG_PATH,
-        '-v'
-    ], regionId, 'building_tiles', 'Esportazione extract Valhalla locale');
-
-    await validateValhallaBuild(regionId, pbfPath);
-
-    const manifest = {
-        regionId,
-        sourcePbf: pbfPath,
-        builtAt: new Date().toISOString(),
-        tileDir: VALHALLA_TILE_DIR,
-        tileExtract: VALHALLA_TILE_EXTRACT
-    };
-
-    await fs.mkdir(VALHALLA_TILE_DIR, { recursive: true });
-    await fs.writeFile(path.join(VALHALLA_TILE_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
-
-    downloadStatus.set(regionId, {
-        status: 'tiles_built',
-        progress: 100,
-        stage: 'Tile Valhalla locali pronti',
-        manifest
-    });
-
-    return VALHALLA_TILE_DIR;
-}
-
-function runDockerCommand(args, regionId, status, stage) {
-    return new Promise((resolve, reject) => {
-        const process = spawn('docker', args);
-
-        process.on('error', (error) => {
-            downloadStatus.set(regionId, {
-                status: 'warning',
-                progress: 0,
-                stage,
-                error: error.message
-            });
-            reject(error);
+    try {
+        const buildResponse = await fetch(`${VALHALLA_ADMIN_URL}/tiles/build`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ region: regionId, pbfPath }),
+            signal: AbortSignal.timeout(600000)
         });
 
-        process.stdout.on('data', (data) => {
-            console.log(`Valhalla build: ${data}`);
-            downloadStatus.set(regionId, {
-                ...downloadStatus.get(regionId),
-                status,
-                progress: Math.min(95, (downloadStatus.get(regionId).progress || 0) + 5),
-                stage
-            });
+        if (!buildResponse.ok) {
+            const errText = await buildResponse.text().catch(() => '');
+            throw new Error(`Admin build failed: ${buildResponse.status} ${errText}`);
+        }
+
+        const buildData = await buildResponse.json().catch(() => ({}));
+
+        downloadStatus.set(regionId, {
+            ...downloadStatus.get(regionId),
+            status: 'building_tiles',
+            progress: 50,
+            stage: 'Esportazione extract Valhalla locale'
         });
 
-        process.stderr.on('data', (data) => {
-            console.error(`Valhalla build error: ${data}`);
+        await validateValhallaBuild(regionId, pbfPath);
+
+        const manifest = {
+            regionId,
+            sourcePbf: pbfPath,
+            builtAt: new Date().toISOString(),
+            tileDir: VALHALLA_TILE_DIR,
+            tileExtract: VALHALLA_TILE_EXTRACT
+        };
+
+        await fs.mkdir(VALHALLA_TILE_DIR, { recursive: true });
+        await fs.writeFile(path.join(VALHALLA_TILE_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
+
+        downloadStatus.set(regionId, {
+            status: 'tiles_built',
+            progress: 100,
+            stage: 'Tile Valhalla locali pronti',
+            manifest
         });
 
-        process.on('close', (code) => {
-            if (code === 0) {
-                resolve();
-            } else {
-                const error = new Error(`Process exited with code ${code}`);
-                downloadStatus.set(regionId, {
-                    status: 'warning',
-                    progress: 0,
-                    stage: 'Build tile non disponibile in questo ambiente',
-                    error: error.message
-                });
-                reject(error);
-            }
+        return VALHALLA_TILE_DIR;
+    } catch (error) {
+        downloadStatus.set(regionId, {
+            status: 'error',
+            progress: 0,
+            stage: 'Errore build tile',
+            error: error.message
         });
-    });
+        throw error;
+    }
 }
 
 async function validateValhallaBuild(regionId, pbfPath) {

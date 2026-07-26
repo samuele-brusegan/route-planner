@@ -1,5 +1,5 @@
 // Routing integration with Valhalla
-const ROUTING_API_URL = window.ROUTING_API_URL || `${window.location.protocol}//${window.location.hostname}:8002`;
+const ROUTING_API_URL = window.ROUTING_API_URL || '/api/routing';
 
 // Calculate route between markers
 async function calculateRoute() {

@@ -1,13 +1,14 @@
 {
-  "name": "route-planner-export",
+  "name": "route-planner-server",
   "version": "1.0.0",
-  "description": "Export service for route planner",
+  "description": "Unified Route Planner backend: routing, export, search, POI, terrain",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "http-proxy-middleware": "^3.0.0",
     "pdfkit": "^0.13.0",
     "axios": "^1.6.0",
     "sqlite3": "^5.1.6",
