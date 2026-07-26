@@ -927,20 +927,40 @@ function displayRoute(routeData) {
     if (nightMarkers.length > 0) {
         // Split route into day segments and color each differently
         const segments = computeRouteDaySegments(routeData.coordinates, nightMarkers);
+        const segmentCount = segments.length;
         segments.forEach((seg, i) => {
             const dayColor = getDayColor(i);
-            // Apply small perpendicular offset so overlapping days are both visible
-            const offsetSegs = applyPerpendicularOffset(seg, (i - (segments.length - 1) / 2) * 6);
-            const segCoords = offsetSegs.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
+            const segCoords = seg.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
             const feature = new ol.Feature({
                 geometry: new ol.geom.LineString(segCoords)
             });
-            feature.setStyle(new ol.style.Style({
-                stroke: new ol.style.Stroke({
-                    color: dayColor,
-                    width: 4
-                })
-            }));
+            feature.set('dayIndex', i);
+            feature.set('segmentCount', segmentCount);
+            // Dynamic style function: offset in screen pixels adapts to zoom
+            feature.setStyle(function(feature, resolution) {
+                // Base offset in pixels: larger when zoomed out, smaller when zoomed in
+                // At zoom 14 (resolution ~9.5m/px): offset ~3px
+                // At zoom 10 (resolution ~152m/px): offset ~8px
+                const baseOffsetPx = Math.max(2, Math.min(10, 3 + Math.log10(resolution) * 1.5));
+                const offsetMultiplier = i - (segmentCount - 1) / 2;
+                const offsetPx = offsetMultiplier * baseOffsetPx;
+
+                if (Math.abs(offsetPx) < 0.5) {
+                    return new ol.style.Style({
+                        stroke: new ol.style.Stroke({ color: dayColor, width: 4 })
+                    });
+                }
+
+                // Convert pixel offset to meters at current resolution
+                const offsetMeters = offsetPx * resolution;
+                const geom = feature.getGeometry();
+                const coords = geom.getCoordinates();
+                const offsetCoords = applyPerpendicularOffsetProjected(coords, offsetMeters);
+                return new ol.style.Style({
+                    geometry: new ol.geom.LineString(offsetCoords),
+                    stroke: new ol.style.Stroke({ color: dayColor, width: 4 })
+                });
+            });
             routeLayer.getSource().addFeature(feature);
         });
     } else {
@@ -981,6 +1001,35 @@ function computeRouteDaySegments(routeCoords, nightMarkers) {
     }
 
     return segments;
+}
+
+// Apply perpendicular offset to projected coordinates (Web Mercator, in meters)
+function applyPerpendicularOffsetProjected(coords, offsetMeters) {
+    if (offsetMeters === 0 || coords.length < 2) return coords;
+
+    const result = [];
+    for (let i = 0; i < coords.length; i++) {
+        let dx, dy;
+        if (i === 0) {
+            dx = coords[1][0] - coords[0][0];
+            dy = coords[1][1] - coords[0][1];
+        } else if (i === coords.length - 1) {
+            dx = coords[i][0] - coords[i - 1][0];
+            dy = coords[i][1] - coords[i - 1][1];
+        } else {
+            dx = coords[i + 1][0] - coords[i - 1][0];
+            dy = coords[i + 1][1] - coords[i - 1][1];
+        }
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len === 0) {
+            result.push([coords[i][0], coords[i][1]]);
+            continue;
+        }
+        const perpX = -dy / len * offsetMeters;
+        const perpY = dx / len * offsetMeters;
+        result.push([coords[i][0] + perpX, coords[i][1] + perpY]);
+    }
+    return result;
 }
 
 // Apply a perpendicular offset (in meters) to a list of [lon, lat] coordinates
