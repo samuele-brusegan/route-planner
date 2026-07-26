@@ -147,14 +147,30 @@ function initTileManager(container) {
 
                 <div class="tile-mgr-section" id="tile-section-dem">
                     <div class="tile-mgr-card">
-                        <h3>Tile DEM (elevazione)</h3>
-                        <p>Tile DEM per calcoli elevazione lato server. Attualmente l'app usa l'API Open-Meteo via proxy.</p>
-                        <div class="tile-mgr-status" id="tile-dem-status">DEM server-side non ancora implementato. L'elevazione usa proxy Open-Meteo.</div>
+                        <h3>Cache elevazione offline</h3>
+                        <p>Scarica i dati di elevazione per un'area geografica. I dati vengono salvati sul server e usati automaticamente quando sei offline.</p>
+                        <div class="tile-mgr-status" id="tile-dem-status">Caricamento stato...</div>
+                        <button class="tile-mgr-btn" id="tile-dem-refresh">Aggiorna stato</button>
+                        <button class="tile-mgr-btn" id="tile-dem-clear" style="margin-left:8px;color:#e74c3c">Cancella cache</button>
                     </div>
                     <div class="tile-mgr-card">
-                        <h3>Configurazione elevazione</h3>
-                        <p>Endpoint proxy: <code>/api/elevation</code> — invia coordinate, riceve elevazioni.</p>
-                        <p>Retry: 3 tentativi con backoff. Batch: 100 punti per richiesta.</p>
+                        <h3>Scarica dati elevazione</h3>
+                        <p>Inserisci i limiti dell'area (latitudine/longitudine) o usa l'area della route corrente.</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                            <label style="font-size:12px">Lat min <input type="number" id="dem-min-lat" step="0.001" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--text)"></label>
+                            <label style="font-size:12px">Lat max <input type="number" id="dem-max-lat" step="0.001" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--text)"></label>
+                            <label style="font-size:12px">Lon min <input type="number" id="dem-min-lon" step="0.001" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--text)"></label>
+                            <label style="font-size:12px">Lon max <input type="number" id="dem-max-lon" step="0.001" style="width:100%;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--text)"></label>
+                        </div>
+                        <label style="font-size:12px;display:block;margin-bottom:8px">Risoluzione (gradi, default 0.01 ≈ 1km)
+                            <input type="number" id="dem-resolution" step="0.001" value="0.01" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--text)">
+                        </label>
+                        <button class="tile-mgr-btn primary" id="tile-dem-download">Scarica dati elevazione</button>
+                        <button class="tile-mgr-btn" id="tile-dem-use-route" style="margin-left:8px">Usa area route</button>
+                    </div>
+                    <div class="tile-mgr-card" id="tile-dem-progress-card" style="display:none">
+                        <h3>Avanzamento download</h3>
+                        <div class="tile-mgr-status" id="tile-dem-progress">In corso...</div>
                     </div>
                 </div>
             </div>
@@ -179,6 +195,13 @@ function initTileManager(container) {
     // Valhalla status
     refreshValhallaStatus();
     container.querySelector('#tile-valhalla-refresh').addEventListener('click', refreshValhallaStatus);
+
+    // DEM elevation
+    refreshDemStatus();
+    container.querySelector('#tile-dem-refresh').addEventListener('click', refreshDemStatus);
+    container.querySelector('#tile-dem-clear').addEventListener('click', clearDemCache);
+    container.querySelector('#tile-dem-download').addEventListener('click', downloadDemData);
+    container.querySelector('#tile-dem-use-route').addEventListener('click', useRouteAreaForDem);
 }
 
 async function refreshDisplayTileStats() {
@@ -242,5 +265,124 @@ async function refreshValhallaStatus() {
         el.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
     } catch (err) {
         el.textContent = 'Impossibile contattare il server Valhalla: ' + err.message;
+    }
+}
+
+async function refreshDemStatus() {
+    const el = document.getElementById('tile-dem-status');
+    if (!el) return;
+    el.textContent = 'Caricamento stato...';
+
+    try {
+        const response = await fetch('/api/elevation/status');
+        if (!response.ok) throw new Error('Status request failed');
+        const data = await response.json();
+        if (data.available) {
+            el.innerHTML = `<div>Cache disponibile: <strong>${data.cacheEntries}</strong> punti</div>
+                <div>File: ${data.cacheFiles} | Dimensione: ${data.cacheSizeMB} MB</div>`;
+        } else {
+            el.textContent = 'Nessun dato di elevazione in cache. Scarica i dati per l\'area desiderata.';
+        }
+    } catch (err) {
+        el.textContent = 'Errore: ' + err.message;
+    }
+}
+
+async function clearDemCache() {
+    if (!confirm('Cancellare tutti i dati di elevazione in cache?')) return;
+    try {
+        const response = await fetch('/api/elevation/cache', { method: 'DELETE' });
+        if (!response.ok) throw new Error('Delete failed');
+        refreshDemStatus();
+        if (typeof showToast === 'function') showToast('Cache elevazione cancellata', 'success');
+    } catch (err) {
+        console.error('Clear DEM cache error:', err);
+        if (typeof showToast === 'function') showToast('Errore cancellazione cache: ' + err.message, 'error');
+    }
+}
+
+function useRouteAreaForDem() {
+    if (typeof AppState === 'undefined' || !AppState.route || !AppState.route.coordinates || AppState.route.coordinates.length === 0) {
+        if (typeof showToast === 'function') showToast('Nessuna route disponibile', 'warn');
+        return;
+    }
+    const coords = AppState.route.coordinates;
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    coords.forEach(c => {
+        if (c[1] < minLat) minLat = c[1];
+        if (c[1] > maxLat) maxLat = c[1];
+        if (c[0] < minLon) minLon = c[0];
+        if (c[0] > maxLon) maxLon = c[0];
+    });
+    // Add small padding
+    const padLat = (maxLat - minLat) * 0.1 || 0.01;
+    const padLon = (maxLon - minLon) * 0.1 || 0.01;
+    document.getElementById('dem-min-lat').value = (minLat - padLat).toFixed(4);
+    document.getElementById('dem-max-lat').value = (maxLat + padLat).toFixed(4);
+    document.getElementById('dem-min-lon').value = (minLon - padLon).toFixed(4);
+    document.getElementById('dem-max-lon').value = (maxLon + padLon).toFixed(4);
+    if (typeof showToast === 'function') showToast('Area route impostata', 'info');
+}
+
+async function downloadDemData() {
+    const minLat = parseFloat(document.getElementById('dem-min-lat').value);
+    const maxLat = parseFloat(document.getElementById('dem-max-lat').value);
+    const minLon = parseFloat(document.getElementById('dem-min-lon').value);
+    const maxLon = parseFloat(document.getElementById('dem-max-lon').value);
+    const resolution = parseFloat(document.getElementById('dem-resolution').value) || 0.01;
+
+    if (!Number.isFinite(minLat) || !Number.isFinite(maxLat) || !Number.isFinite(minLon) || !Number.isFinite(maxLon)) {
+        if (typeof showToast === 'function') showToast('Inserisci tutti i valori dei limiti', 'warn');
+        return;
+    }
+    if (minLat >= maxLat || minLon >= maxLon) {
+        if (typeof showToast === 'function') showToast('I limiti non sono validi (min deve essere < max)', 'warn');
+        return;
+    }
+
+    // Estimate point count
+    const latSteps = Math.ceil((maxLat - minLat) / resolution);
+    const lonSteps = Math.ceil((maxLon - minLon) / resolution);
+    const totalPoints = latSteps * lonSteps;
+
+    if (totalPoints > 50000) {
+        if (!confirm(`Stai per scaricare ~${totalPoints.toLocaleString('it-IT')} punti di elevazione. Questo potrebbe richiedere molto tempo. Continuare?`)) return;
+    }
+
+    const progressCard = document.getElementById('tile-dem-progress-card');
+    const progressEl = document.getElementById('tile-dem-progress');
+    progressCard.style.display = 'block';
+    progressEl.textContent = `Download in corso... (~${totalPoints} punti)`;
+
+    const btn = document.getElementById('tile-dem-download');
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/elevation/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                bounds: { minLat, maxLat, minLon, maxLon },
+                resolution
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        progressEl.innerHTML = `<div>Download completato!</div>
+            <div>Punti scaricati: <strong>${data.downloaded}</strong></div>
+            ${data.failed > 0 ? `<div style="color:#e74c3c">Punti falliti: ${data.failed}</div>` : ''}
+            ${data.downloaded === 0 && data.failed === 0 ? '<div>Tutti i punti erano già in cache.</div>' : ''}`;
+        refreshDemStatus();
+        if (typeof showToast === 'function') showToast(`Dati elevazione scaricati: ${data.downloaded} punti`, 'success');
+    } catch (err) {
+        progressEl.textContent = 'Errore: ' + err.message;
+        if (typeof showToast === 'function') showToast('Errore download elevazione: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
     }
 }
