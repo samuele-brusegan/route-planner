@@ -32,9 +32,9 @@
 
 | Task | Status | Date | Notes |
 |------|--------|------|-------|
-| 4.1 GPX inspector | [ ] | | |
-| 4.2 Secret route list | [ ] | | |
-| 4.3 Path-based URL router | [ ] | | |
+| 4.1 GPX inspector | [x] | 2026-07-26 | gpx-inspector.js: multi-file/ZIP import, map display, track/waypoint stats |
+| 4.2 Secret route list | [x] | 2026-07-26 | secret.js: lists pages, saved routes in localStorage with load/delete |
+| 4.3 Path-based URL router | [x] | 2026-07-26 | router.js: path-based routing, dynamic view loading, no server changes needed |
 
 ## Phase 5: Advanced Features
 

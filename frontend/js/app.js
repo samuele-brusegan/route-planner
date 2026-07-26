@@ -101,6 +101,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof loadRouteFromUrl === 'function') {
         await loadRouteFromUrl();
     }
+    if (typeof initRouter === 'function') {
+        initRouter();
+    }
 });
 
 // Save to localStorage
