@@ -698,14 +698,17 @@ async function requestValhallaRoute(locations, profile, directionsOptions, costi
 }
 
 async function fetchValhallaRoute(locations, profile, directionsOptions, costing, routeUrl, signal, snapOptions) {
-    const routeLocations = locations.map((loc, index) => ({
-        lat: loc.lat,
-        lon: loc.lon,
-        type: 'break',
-        radius: snapOptions.snapRadiusMeters,
-        rank_candidates: snapOptions.rankCandidates,
-        minimum_reachability: snapOptions.minimumReachability
-    }));
+    const routeLocations = locations.map((loc, index) => {
+        const isEndpoint = index === 0 || index === locations.length - 1;
+        return {
+            lat: loc.lat,
+            lon: loc.lon,
+            type: isEndpoint ? 'break' : 'through',
+            radius: isEndpoint ? snapOptions.snapRadiusMeters : Math.min(snapOptions.snapRadiusMeters, 5),
+            rank_candidates: snapOptions.rankCandidates,
+            minimum_reachability: snapOptions.minimumReachability
+        };
+    });
 
     const response = await fetch(routeUrl, {
         method: 'POST',
