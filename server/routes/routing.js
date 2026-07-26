@@ -701,7 +701,7 @@ async function fetchValhallaRoute(locations, profile, directionsOptions, costing
     const routeLocations = locations.map((loc, index) => ({
         lat: loc.lat,
         lon: loc.lon,
-        type: index === 0 || index === locations.length - 1 ? 'break' : 'through',
+        type: 'break',
         radius: snapOptions.snapRadiusMeters,
         rank_candidates: snapOptions.rankCandidates,
         minimum_reachability: snapOptions.minimumReachability
