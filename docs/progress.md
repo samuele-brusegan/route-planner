@@ -25,8 +25,8 @@
 
 | Task | Status | Date | Notes |
 |------|--------|------|-------|
-| 3.1 Improve place search (20km filter + distance) | [ ] | | |
-| 3.2 Export routes by day as ZIP | [ ] | | |
+| 3.1 Improve place search (20km filter + distance) | [x] | 2026-07-26 | Filter results by 20km from map edge, show distance to last marker |
+| 3.2 Export routes by day as ZIP | [x] | 2026-07-26 | JSZip CDN, exportGPXZip function, metadata.json, button in export modal |
 
 ## Phase 4: Secret Pages
 

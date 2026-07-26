@@ -49,6 +49,68 @@ async function exportGPX(splitByDays = false) {
     }
 }
 
+// Export GPX per days as a ZIP file
+async function exportGPXZip() {
+    if (!AppState.route || AppState.markers.length < 2) {
+        showExportToast('Nessuna route da esportare.', 'warning');
+        return;
+    }
+
+    if (typeof JSZip === 'undefined') {
+        showExportToast('Libreria ZIP non caricata. Ricarica la pagina.', 'fatal');
+        return;
+    }
+
+    const customName = getExportRouteName();
+    const baseName = customName || 'route';
+
+    try {
+        const daySegments = buildNightSplitSegments();
+        warnIfSplitLooksInvalid(daySegments);
+
+        const zip = new JSZip();
+
+        for (const segment of daySegments) {
+            const segName = customName ? `${customName} — ${segment.name}` : segment.name;
+            const dayGPX = await generateGPXContent(segment.route, segment.markers, segName);
+            const fname = `${sanitizeFilename(baseName)}-giorno-${segment.day}.gpx`;
+            zip.file(fname, dayGPX);
+        }
+
+        const metadata = {
+            routeName: customName || 'Route',
+            generatedAt: new Date().toISOString(),
+            totalMarkers: AppState.markers.length,
+            totalDistance: AppState.stats.totalDistance,
+            totalAscent: AppState.stats.totalAscent,
+            totalDescent: AppState.stats.totalDescent,
+            totalTime: AppState.stats.totalTime,
+            days: daySegments.map(seg => ({
+                day: seg.day,
+                name: seg.name,
+                markerCount: seg.markers.length,
+                distance: seg.route ? (seg.route.distance || 0) : 0
+            }))
+        };
+        zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${sanitizeFilename(baseName)}-giorni.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showExportToast(`ZIP con ${daySegments.length} file GPX esportato.`, 'info');
+    } catch (error) {
+        console.error('GPX ZIP export error:', error);
+        showExportToast(error.message || 'Errore durante esportazione ZIP.', 'fatal');
+    }
+}
+
 // Generate GPX content
 async function generateGPXContent(route, markers, name) {
     const date = new Date().toISOString();

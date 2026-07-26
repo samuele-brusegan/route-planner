@@ -2338,6 +2338,7 @@ body {
     gap: 8px;
     border-bottom: 1px solid var(--border);
     transition: background var(--transition);
+    flex-wrap: wrap;
 }
 
 .search-result-item:hover {
@@ -2358,6 +2359,13 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.search-dist {
+    font-size: 11px;
+    color: var(--text-muted);
+    width: 100%;
+    padding-left: 24px;
 }
 
 /* ===== Trail Analysis ===== */

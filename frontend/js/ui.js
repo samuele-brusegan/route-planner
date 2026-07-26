@@ -487,6 +487,7 @@ function setupButtons() {
     document.getElementById('close-export-page').addEventListener('click', hideExportPage);
     document.getElementById('export-gpx-full').addEventListener('click', () => exportGPX(false));
     document.getElementById('export-gpx-split').addEventListener('click', () => exportGPX(true));
+    document.getElementById('export-gpx-zip').addEventListener('click', exportGPXZip);
     document.getElementById('export-map-png').addEventListener('click', exportMapPNG);
     document.getElementById('export-map-pdf').addEventListener('click', exportMapPDF);
     document.getElementById('export-directions-pdf').addEventListener('click', exportDirectionsPDF);
