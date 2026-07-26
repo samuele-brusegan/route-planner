@@ -145,21 +145,6 @@ async function initMap() {
     // Add click handler for placing markers
     map.on('click', handleMapClick);
 
-    // Re-render route on zoom change to update dynamic day offset
-    let zoomRenderTimer = null;
-    map.on('moveend', () => {
-        if (skipNextMoveEnd) {
-            skipNextMoveEnd = false;
-            return;
-        }
-        if (!lastRouteData) return;
-        clearTimeout(zoomRenderTimer);
-        zoomRenderTimer = setTimeout(() => {
-            const routeData = lastRouteData;
-            displayRouteNoFit(routeData);
-        }, 200);
-    });
-    
     // Check for saved offline mode preference
     const savedMode = localStorage.getItem('offlineMode');
     if (savedMode === 'true') {
@@ -928,14 +913,10 @@ function clearMapMarkers() {
 }
 
 // Display route on map
-let lastRouteData = null;
-let skipNextMoveEnd = false;
-
 function displayRoute(routeData) {
     routeLayer.getSource().clear();
     
     if (!routeData || !routeData.coordinates) return;
-    lastRouteData = routeData;
     
     const coordinates = routeData.coordinates.map(coord => 
         ol.proj.fromLonLat([coord[0], coord[1]])
@@ -949,7 +930,7 @@ function displayRoute(routeData) {
         // Dynamic offset: scale with map resolution so it's visible at any zoom
         // ~4 pixels of offset at current zoom level
         const resolution = map.getView().getResolution();
-        const metersPerPixel = resolution * 111319.49; // approx meters per pixel at this lat
+        const metersPerPixel = resolution * 111319.49;
         const offsetMeters = Math.max(2, metersPerPixel * 4);
         segments.forEach((seg, i) => {
             const dayColor = getDayColor(i);
@@ -977,51 +958,8 @@ function displayRoute(routeData) {
     updateRoutingDebugLayer(routeData);
     
     // Fit map to route
-    skipNextMoveEnd = true;
     const extent = routeLayer.getSource().getExtent();
     map.getView().fit(extent, { padding: [50, 50, 50, 50] });
-}
-
-// Display route without fitting map (used on zoom change)
-function displayRouteNoFit(routeData) {
-    routeLayer.getSource().clear();
-    
-    if (!routeData || !routeData.coordinates) return;
-    lastRouteData = routeData;
-    
-    const nightMarkers = AppState.markers.filter(m => m.type === 'night');
-
-    if (nightMarkers.length > 0) {
-        const segments = computeRouteDaySegments(routeData.coordinates, nightMarkers);
-        const resolution = map.getView().getResolution();
-        const metersPerPixel = resolution * 111319.49;
-        const offsetMeters = Math.max(2, metersPerPixel * 4);
-        segments.forEach((seg, i) => {
-            const dayColor = getDayColor(i);
-            const offsetSegs = applyPerpendicularOffset(seg, (i - (segments.length - 1) / 2) * offsetMeters);
-            const segCoords = offsetSegs.map(coord => ol.proj.fromLonLat([coord[0], coord[1]]));
-            const feature = new ol.Feature({
-                geometry: new ol.geom.LineString(segCoords)
-            });
-            feature.setStyle(new ol.style.Style({
-                stroke: new ol.style.Stroke({
-                    color: dayColor,
-                    width: 4
-                })
-            }));
-            routeLayer.getSource().addFeature(feature);
-        });
-    } else {
-        const coordinates = routeData.coordinates.map(coord => 
-            ol.proj.fromLonLat([coord[0], coord[1]])
-        );
-        const feature = new ol.Feature({
-            geometry: new ol.geom.LineString(coordinates)
-        });
-        routeLayer.getSource().addFeature(feature);
-    }
-
-    updateRoutingDebugLayer(routeData);
 }
 
 // Compute route segments split by night markers
