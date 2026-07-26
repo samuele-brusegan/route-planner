@@ -18,6 +18,7 @@ const VALHALLA_TILE_EXTRACT = process.env.VALHALLA_TILE_EXTRACT || '/data/valhal
 const SNAP_RADIUS_METERS = Number(process.env.SNAP_RADIUS_METERS || 18);
 const RELAXED_SNAP_RADIUS_METERS = Number(process.env.RELAXED_SNAP_RADIUS_METERS || 55);
 const MAX_HIKING_DIFFICULTY = clampNumber(process.env.MAX_HIKING_DIFFICULTY, 0, 6, 6);
+const MAX_ROAD_PREFERENCE = clampNumber(process.env.MAX_ROAD_PREFERENCE, 0, 1, 0.1);
 const GRAPHHOPPER_API_URL = process.env.GRAPHHOPPER_API_URL || 'https://graphhopper.com/api/1/route';
 const GRAPHHOPPER_API_KEY = process.env.GRAPHHOPPER_API_KEY || '';
 
@@ -754,7 +755,8 @@ function buildValhallaCostingOptions() {
         pedestrian: {
             use_tracks: 1,
             use_paths: 1,
-            use_living_streets: 0.9,
+            use_living_streets: 0.5,
+            use_roads: MAX_ROAD_PREFERENCE,
             walking_speed: 4.8,
             max_hiking_difficulty: MAX_HIKING_DIFFICULTY
         },
