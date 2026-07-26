@@ -944,6 +944,12 @@ function displayRoute(routeData) {
             const overlapMask = overlapMasks[i];
             // Dynamic style function: offset in screen pixels adapts to zoom
             feature.setStyle(function(feature, resolution) {
+                // No offset at high zoom (resolution < 2.4 m/px ≈ zoom 16+)
+                if (resolution < 2.4) {
+                    return new ol.style.Style({
+                        stroke: new ol.style.Stroke({ color: dayColor, width: 4 })
+                    });
+                }
                 // Reduced offset: 1-4px depending on zoom
                 const baseOffsetPx = Math.max(1, Math.min(4, 1.5 + Math.log10(resolution) * 0.8));
                 const offsetMultiplier = i - (segmentCount - 1) / 2;
