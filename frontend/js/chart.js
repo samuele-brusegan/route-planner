@@ -34,23 +34,40 @@ function initElevationChart() {
                     display: false
                 },
                 tooltip: {
+                    titleFont: { size: 12 },
+                    bodyFont: { size: 12 },
+                    padding: 8,
                     callbacks: {
                         title: function(context) {
-                            const dist = getDistanceAtPoint(context[0].dataIndex);
+                            const idx = context[0].dataIndex;
+                            const marker = getMarkerAtPoint(idx);
+                            if (marker) return marker.name || marker.type;
+                            const dist = getDistanceAtPoint(idx);
                             return dist !== null ? `${dist.toFixed(1)} km` : '';
                         },
                         label: function(context) {
                             const elevation = context.parsed.y;
-                            const slope = getSlopeAtPoint(context.dataIndex);
-                            const sac = getSacAtPoint(context.dataIndex);
-                            const cumAscent = getCumulativeAscentAtPoint(context.dataIndex);
-                            const cumDescent = getCumulativeDescentAtPoint(context.dataIndex);
-                            let label = `Altitudine: ${elevation} m`;
-                            if (slope !== null) label += ` | Pendenza: ${slope}%`;
-                            if (sac) label += ` | SAC: ${sac}`;
-                            if (cumAscent > 0) label += ` | Salita: +${cumAscent} m`;
-                            if (cumDescent > 0) label += ` | Discesa: -${cumDescent} m`;
-                            return label;
+                            return `Altitudine: ${elevation} m`;
+                        },
+                        afterLabel: function(context) {
+                            const idx = context.dataIndex;
+                            const lines = [];
+                            const slope = getSlopeAtPoint(idx);
+                            const sac = getSacAtPoint(idx);
+                            const cumAscent = getCumulativeAscentAtPoint(idx);
+                            const cumDescent = getCumulativeDescentAtPoint(idx);
+                            const dist = getDistanceAtPoint(idx);
+                            const marker = getMarkerAtPoint(idx);
+                            if (marker && dist !== null) lines.push(`Distanza: ${dist.toFixed(1)} km`);
+                            if (slope !== null) lines.push(`Pendenza: ${slope}%`);
+                            if (sac) lines.push(`SAC: ${sac}`);
+                            if (cumAscent > 0 || cumDescent > 0) {
+                                let cumLine = '';
+                                if (cumAscent > 0) cumLine += `+${cumAscent} m`;
+                                if (cumDescent > 0) cumLine += (cumLine ? ' / ' : '') + `−${cumDescent} m`;
+                                lines.push(`Salita/Discesa: ${cumLine}`);
+                            }
+                            return lines;
                         }
                     }
                 }
@@ -104,15 +121,34 @@ function getSegmentColor(ctx) {
         return colors[sac] || '#4a90a4';
     }
 
-    // Priority 2: Slope-based coloring
+    // Priority 2: Slope-based coloring (gradient: green 0% → red 50% → purple beyond)
     const slope = getSlopeAtPoint(index);
     if (slope !== null) {
-        if (slope > 20) return '#ef4444';
-        if (slope > 10) return '#f59e0b';
-        return '#22c55e';
+        return slopeToColor(slope);
     }
 
     return '#4a90a4';
+}
+
+// Continuous slope-to-color mapping: green 0% → yellow 25% → orange 37.5% → red 50% → purple beyond
+function slopeToColor(slope) {
+    const s = Math.max(0, slope);
+    if (s >= 50) {
+        // Red (50%) → Purple (100%+): interpolate hue from 0° to 280°
+        const t = Math.min((s - 50) / 50, 1);
+        return interpolateHsl(0, 100, 50, 280, 100, 50, t);
+    }
+    // Green (120°) → Yellow (60°) → Orange (30°) → Red (0°): 0% → 50%
+    const t = s / 50;
+    return interpolateHsl(120, 80, 45, 0, 100, 50, t);
+}
+
+// Linear interpolation between two HSL colors
+function interpolateHsl(h1, s1, l1, h2, s2, l2, t) {
+    const h = h1 + (h2 - h1) * t;
+    const s = s1 + (s2 - s1) * t;
+    const l = l1 + (l2 - l1) * t;
+    return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
 }
 
 // Get SAC scale at a chart point (from trail analysis data)
@@ -136,6 +172,22 @@ function getSacAtPoint(index) {
 function getSlopeAtPoint(index) {
     if (!AppState.elevationSlopes || !AppState.elevationSlopes[index]) return null;
     return AppState.elevationSlopes[index];
+}
+
+// Get marker closest to a chart data index (within threshold)
+function getMarkerAtPoint(index) {
+    if (!AppState.chartMarkerPositions) return null;
+    const threshold = Math.max(3, Math.floor((AppState.elevationDataLength || 300) / 50));
+    let closest = null;
+    let closestDist = Infinity;
+    for (const mp of AppState.chartMarkerPositions) {
+        const d = Math.abs(mp.index - index);
+        if (d <= threshold && d < closestDist) {
+            closestDist = d;
+            closest = mp.marker;
+        }
+    }
+    return closest;
 }
 
 // Get cumulative distance at a chart point (km)
@@ -322,51 +374,27 @@ function renderChartStatsBar(elevations) {
     ].map(s => `<div class="chart-stat-pill"><span class="pill-icon">${s.icon}</span><span class="pill-value">${s.value}<span class="pill-unit">${s.unit}</span></span></div>`).join('');
 }
 
-// Render the color legend for SAC scale and slope-based coloring
-function renderChartLegend() {
-    const legend = document.getElementById('chart-legend');
-    if (!legend) return;
+// Render the day selector dropdown
+function renderDaySelector(dayBoundaries) {
+    const container = document.getElementById('chart-day-selector');
+    const select = document.getElementById('chart-day-select');
+    if (!container || !select) return;
 
-    const hasSac = AppState.trailAnalysis && AppState.trailAnalysis.sacSegments && AppState.trailAnalysis.sacSegments.length > 0;
-    const hasSlope = AppState.elevationSlopes && AppState.elevationSlopes.some(s => s !== null);
-
-    if (!hasSac && !hasSlope) {
-        legend.classList.add('hidden');
+    if (!dayBoundaries || dayBoundaries.length <= 1) {
+        container.classList.add('hidden');
         return;
     }
 
-    legend.classList.remove('hidden');
-    let html = '';
+    container.classList.remove('hidden');
 
-    if (hasSac) {
-        const sacColors = [
-            { label: 'T1', color: '#22c55e' },
-            { label: 'T2', color: '#3b82f6' },
-            { label: 'T3', color: '#ef4444' },
-            { label: 'T4', color: '#1e293b' },
-            { label: 'T5', color: '#7c3aed' },
-            { label: 'T6', color: '#000000' }
-        ];
-        html += '<div class="chart-legend-group">';
-        sacColors.forEach(s => {
-            html += `<span class="chart-legend-badge" title="SAC ${s.label}"><span class="chart-legend-dot" style="background:${s.color}"></span>${s.label}</span>`;
-        });
-        html += '</div>';
-    }
-
-    if (hasSac && hasSlope) {
-        html += '<span class="chart-legend-sep"></span>';
-    }
-
-    if (hasSlope) {
-        html += '<div class="chart-legend-group">';
-        html += '<span class="chart-legend-badge" title="Pendenza < 10%"><span class="chart-legend-dot" style="background:#22c55e"></span>&lt;10%</span>';
-        html += '<span class="chart-legend-badge" title="Pendenza 10-20%"><span class="chart-legend-dot" style="background:#f59e0b"></span>10-20%</span>';
-        html += '<span class="chart-legend-badge" title="Pendenza > 20%"><span class="chart-legend-dot" style="background:#ef4444"></span>&gt;20%</span>';
-        html += '</div>';
-    }
-
-    legend.innerHTML = html;
+    // Preserve current selection if still valid
+    const currentVal = AppState.chartSelectedDay;
+    let html = '<option value=""' + (currentVal === null ? ' selected' : '') + '>Tutti i giorni</option>';
+    dayBoundaries.forEach((_, i) => {
+        const selected = currentVal === i ? ' selected' : '';
+        html += `<option value="${i}"${selected}>Giorno ${i + 1}</option>`;
+    });
+    select.innerHTML = html;
 }
 
 // Show or hide the empty state overlay
@@ -392,7 +420,9 @@ async function updateElevationChart() {
         AppState.chartCumulativeAscent = null;
         AppState.chartCumulativeDescent = null;
         renderChartStatsBar([]);
-        renderChartLegend();
+        const daySelector = document.getElementById('chart-day-selector');
+        if (daySelector) daySelector.classList.add('hidden');
+        AppState.chartSelectedDay = null;
         updateChartEmptyState(false);
         return;
     }
@@ -419,10 +449,25 @@ async function updateElevationChart() {
     const labels = elevationData.map((_, i) => i);
     const elevations = elevationData.map(d => d.elevation);
     
+    // Pre-compute marker positions on chart X-axis for tooltip lookup
+    const routeCoords = AppState.route.coordinates;
+    AppState.chartMarkerPositions = AppState.markers.map(marker => {
+        let closestIdx = 0;
+        let closestDist = Infinity;
+        for (let i = 0; i < routeCoords.length; i++) {
+            const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
+            if (d < closestDist) {
+                closestDist = d;
+                closestIdx = i;
+            }
+        }
+        const routeIndex = Math.round(closestIdx * (elevationData.length / routeCoords.length));
+        return { index: routeIndex, marker };
+    });
+
     // Add day separators using actual route coordinates for positioning
     const nightMarkers = AppState.markers.filter(m => m.type === 'night');
     const annotations = [];
-    const routeCoords = AppState.route.coordinates;
 
     nightMarkers.forEach((marker) => {
         let closestIdx = 0;
@@ -435,29 +480,31 @@ async function updateElevationChart() {
             }
         }
         const routeIndex = Math.round(closestIdx * (elevationData.length / routeCoords.length));
-        const shortName = marker.name && marker.name.length > 12 ? marker.name.substring(0, 10) + '…' : (marker.name || 'Notte');
         annotations.push({
             type: 'line',
             xMin: routeIndex,
             xMax: routeIndex,
             borderColor: 'rgba(231, 76, 60, 0.7)',
             borderWidth: 1.5,
-            borderDash: [4, 4],
-            label: {
-                display: true,
-                content: shortName,
-                position: 'start',
-                backgroundColor: 'rgba(231, 76, 60, 0.85)',
-                color: '#ffffff',
-                font: { size: 9, weight: 'normal' },
-                padding: { top: 2, bottom: 2, left: 4, right: 4 },
-                borderRadius: 3
-            }
+            borderDash: [4, 4]
         });
     });
 
-    // Add day background bands with distinct colors
+    // Compute day boundaries
     const dayBoundaries = computeDayBoundaries(routeCoords, elevationData.length);
+
+    // Render day selector
+    renderDaySelector(dayBoundaries);
+
+    // Determine visible range based on selected day
+    let visibleStart = 0;
+    let visibleEnd = elevations.length - 1;
+    if (AppState.chartSelectedDay !== null && AppState.chartSelectedDay >= 0 && AppState.chartSelectedDay < dayBoundaries.length) {
+        visibleStart = dayBoundaries[AppState.chartSelectedDay].start;
+        visibleEnd = dayBoundaries[AppState.chartSelectedDay].end;
+    }
+
+    // Add day background bands with distinct colors
     dayBoundaries.forEach((boundary, i) => {
         const dayColor = getDayColor(i);
         annotations.push({
@@ -483,19 +530,10 @@ async function updateElevationChart() {
     
     // Add all markers as point annotations on the elevation line
     AppState.markers.forEach((marker) => {
-        let closestIdx = 0;
-        let closestDist = Infinity;
-        for (let i = 0; i < routeCoords.length; i++) {
-            const d = Math.pow(routeCoords[i][0] - marker.lon, 2) + Math.pow(routeCoords[i][1] - marker.lat, 2);
-            if (d < closestDist) {
-                closestDist = d;
-                closestIdx = i;
-            }
-        }
-        const routeIndex = Math.round(closestIdx * (elevationData.length / routeCoords.length));
+        const mp = AppState.chartMarkerPositions.find(p => p.marker === marker);
+        const routeIndex = mp ? mp.index : 0;
         const elev = elevations[routeIndex] || 0;
         const isNight = marker.type === 'night';
-        const shortName = marker.name && marker.name.length > 10 ? marker.name.substring(0, 9) + '…' : (marker.name || '');
 
         annotations.push({
             type: 'point',
@@ -506,31 +544,25 @@ async function updateElevationChart() {
             borderColor: '#ffffff',
             borderWidth: 1
         });
-
-        if (shortName && !isNight) {
-            annotations.push({
-                type: 'label',
-                xValue: routeIndex,
-                yValue: elev,
-                content: shortName,
-                rotation: 270,
-                color: '#ffffff',
-                backgroundColor: 'rgba(0, 0, 0, 0.65)',
-                font: { size: 8, weight: 'normal' },
-                padding: { top: 2, bottom: 2, left: 3, right: 3 },
-                borderRadius: 3,
-                yAdjust: -18,
-                xAdjust: 0
-            });
-        }
     });
 
-    // Add max/min elevation annotations
-    let maxIdx = 0, minIdx = 0;
-    for (let i = 1; i < elevations.length; i++) {
+    // Add max/min elevation annotations (within visible range only)
+    let maxIdx = visibleStart, minIdx = visibleStart;
+    for (let i = visibleStart + 1; i <= visibleEnd; i++) {
         if (elevations[i] > elevations[maxIdx]) maxIdx = i;
         if (elevations[i] < elevations[minIdx]) minIdx = i;
     }
+
+    // Calculate xAdjust to prevent label clipping at edges
+    const rangeSize = visibleEnd - visibleStart;
+    const edgeThreshold = Math.max(2, Math.floor(rangeSize * 0.05));
+    let maxXAdjust = 0;
+    if (maxIdx <= visibleStart + edgeThreshold) maxXAdjust = 35;
+    else if (maxIdx >= visibleEnd - edgeThreshold) maxXAdjust = -35;
+    let minXAdjust = 0;
+    if (minIdx <= visibleStart + edgeThreshold) minXAdjust = 35;
+    else if (minIdx >= visibleEnd - edgeThreshold) minXAdjust = -35;
+
     annotations.push({
         type: 'point',
         xValue: maxIdx,
@@ -547,10 +579,11 @@ async function updateElevationChart() {
         content: elevations[maxIdx] + ' m',
         color: '#ffffff',
         backgroundColor: 'rgba(34, 197, 94, 0.9)',
-        font: { size: 10, weight: 'bold' },
+        font: { size: 11, weight: 'bold' },
         padding: { top: 2, bottom: 2, left: 5, right: 5 },
         borderRadius: 4,
         yAdjust: -20,
+        xAdjust: maxXAdjust,
         callout: {
             display: true,
             borderColor: 'rgba(34, 197, 94, 0.7)',
@@ -574,10 +607,11 @@ async function updateElevationChart() {
         content: elevations[minIdx] + ' m',
         color: '#ffffff',
         backgroundColor: 'rgba(239, 68, 68, 0.9)',
-        font: { size: 10, weight: 'bold' },
+        font: { size: 11, weight: 'bold' },
         padding: { top: 2, bottom: 2, left: 5, right: 5 },
         borderRadius: 4,
         yAdjust: 20,
+        xAdjust: minXAdjust,
         callout: {
             display: true,
             borderColor: 'rgba(239, 68, 68, 0.7)',
@@ -593,14 +627,22 @@ async function updateElevationChart() {
     elevationChart.data.labels = labels;
     elevationChart.data.datasets[0].data = elevations;
 
+    // Set x-axis range to visible day if selected
+    if (AppState.chartSelectedDay !== null) {
+        elevationChart.options.scales.x.min = visibleStart;
+        elevationChart.options.scales.x.max = visibleEnd;
+    } else {
+        elevationChart.options.scales.x.min = undefined;
+        elevationChart.options.scales.x.max = undefined;
+    }
+
     // Add annotations (plugin loaded via CDN, self-registers with Chart.js)
     elevationChart.options.plugins.annotation = {
         annotations: annotations
     };
 
-    // Render stats bar, legend, and hide empty state
+    // Render stats bar and hide empty state
     renderChartStatsBar(elevations);
-    renderChartLegend();
     updateChartEmptyState(true);
 
     elevationChart.update();

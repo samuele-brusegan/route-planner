@@ -2,9 +2,9 @@
 const AppState = {
     markers: [],
     markerTypes: [
-        { id: 'night', name: 'Punto Notte', color: '#e74c3c', icon: '🏠' },
-        { id: 'supply', name: 'Rifornimento', color: '#f39c12', icon: '🍽️' },
-        { id: 'path', name: 'Punto Strada', color: '#3498db', icon: '📍' }
+        { id: 'night', name: 'Punto Notte', color: '#e74c3c', icon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>' },
+        { id: 'supply', name: 'Rifornimento', color: '#f39c12', icon: '<path d="M5 11V2m0 9c0 1.1-.9 2-2 2s-2-.9-2-2V2m4 9v11M21 15V2a4 4 0 0 0-4 4v6c0 1.1.9 2 2 2h2zm0 0v7"/>' },
+        { id: 'path', name: 'Punto Strada', color: '#3498db', icon: '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>' }
     ],
     route: null,
     directions: [],
@@ -14,7 +14,9 @@ const AppState = {
         totalDescent: 0,
         totalTime: 0
     },
-    dailyStats: []
+    dailyStats: [],
+    chartSelectedDay: null,
+    markerSize: 'normal'
 };
 
 // Undo/Redo system
@@ -133,7 +135,8 @@ function saveToLocalStorage() {
         showOsmGraph: AppState.showOsmGraph,
         showOsmInspector: AppState.showOsmInspector,
         routingError: AppState.routingError,
-        dayColors: AppState.dayColors || []
+        dayColors: AppState.dayColors || [],
+        markerSize: AppState.markerSize || 'normal'
     };
     localStorage.setItem('routePlannerData', JSON.stringify(data));
 }
@@ -203,6 +206,7 @@ async function loadFromLocalStorage() {
         AppState.showOsmInspector = parsed.showOsmInspector || false;
         AppState.routingError = parsed.routingError || null;
         AppState.dayColors = parsed.dayColors || [];
+        AppState.markerSize = parsed.markerSize || 'normal';
         applyRouteStyle();
 
         const savedPanelVisibility = loadPanelVisibilityFromLocalStorage();

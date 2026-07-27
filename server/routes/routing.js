@@ -845,7 +845,8 @@ function normalizeValhallaRoute(data, originalLocations, profile, valhallaSource
                 instruction: maneuver.instruction || 'Prosegui',
                 length: kilometersToMeters(maneuver.length || 0),
                 time: maneuver.time || 0,
-                type: maneuver.type || 'route'
+                type: maneuver.type || 'route',
+                street_name: maneuver.street_name || ''
             });
         });
     });
@@ -973,7 +974,8 @@ function normalizeOsrmRoute(data, profile) {
                 instruction: formatOsrmInstruction(step),
                 length: Math.round(step.distance || 0),
                 time: Math.round(step.duration || 0),
-                type: step.maneuver?.type || 'route'
+                type: step.maneuver?.type || 'route',
+                street_name: step.name || ''
             });
         });
     });
@@ -1039,7 +1041,8 @@ function normalizeGraphHopperRoute(data, originalLocations, profile) {
                     instruction: instruction.text || 'Prosegui',
                     length: Math.round(instruction.distance || 0),
                     time: Math.round((instruction.time || 0) / 1000),
-                    type: instruction.sign || 'route'
+                    type: instruction.sign || 'route',
+                    street_name: instruction.street_name || ''
                 })),
                 summary: {
                     length: Math.round(path.distance || 0),

@@ -224,6 +224,13 @@ function setupMenuDropdowns() {
         setOsmInspectorVisible(document.getElementById('toggle-osm-inspector').checked);
         syncSettingsSwitches();
     });
+    document.getElementById('toggle-marker-size').addEventListener('change', () => {
+        AppState.markerSize = document.getElementById('toggle-marker-size').checked ? 'small' : 'normal';
+        saveToLocalStorage();
+        clearMapMarkers();
+        AppState.markers.forEach(m => addMarkerToMap(m));
+        syncSettingsSwitches();
+    });
     document.getElementById('offline-maps').addEventListener('click', () => {
         window.location.href = 'offline-maps.html';
     });
@@ -420,6 +427,7 @@ function syncSettingsSwitches() {
     setSwitchChecked('toggle-routing-warnings', AppState.showRoutingWarnings);
     setSwitchChecked('toggle-routing-debug', AppState.showRoutingDebug);
     setSwitchChecked('toggle-osm-graph', AppState.showOsmGraph);
+    setSwitchChecked('toggle-marker-size', AppState.markerSize === 'small');
     setSwitchChecked('toggle-trail-overlay', getTrailOverlayVisible());
     setSwitchChecked('toggle-contour-overlay', getContourOverlayVisible());
 }
@@ -463,6 +471,16 @@ function setupButtons() {
             if (elevationChart) {
                 setTimeout(() => elevationChart.resize(), 50);
             }
+        });
+    }
+
+    // Chart day selector
+    const daySelect = document.getElementById('chart-day-select');
+    if (daySelect) {
+        daySelect.addEventListener('change', () => {
+            const val = daySelect.value;
+            AppState.chartSelectedDay = val === '' ? null : parseInt(val, 10);
+            updateElevationChart();
         });
     }
 

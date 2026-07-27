@@ -145,6 +145,7 @@ function processDirections(maneuvers) {
         instruction: m.instruction,
         distance: m.length,
         type: m.type,
+        streetName: m.street_name || '',
         note: ''
     }));
 }

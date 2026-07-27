@@ -446,7 +446,10 @@ async function exportDirectionsPDF() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                directions: AppState.directions,
+                directions: groupDirections(AppState.directions).map(d => ({
+                    instruction: formatDirection(d),
+                    note: d.note || ''
+                })),
                 stats: AppState.stats,
                 dailyStats: AppState.dailyStats,
                 title: getExportRouteName() || 'Route Planner - Indicazioni'

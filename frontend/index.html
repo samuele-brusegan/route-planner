@@ -344,6 +344,9 @@
         </div>
         <div class="panel-content">
             <div id="chart-stats-bar" class="chart-stats-bar hidden"></div>
+            <div id="chart-day-selector" class="chart-day-selector hidden">
+                <select id="chart-day-select"></select>
+            </div>
             <div id="chart-wrapper" class="chart-wrapper">
                 <canvas id="elevation-chart"></canvas>
                 <div id="chart-empty-state" class="chart-empty-state">
@@ -355,7 +358,6 @@
                     <small>Aggiungi almeno due punti per visualizzare il profilo altimetrico</small>
                 </div>
             </div>
-            <div id="chart-legend" class="chart-legend hidden"></div>
             <div class="chart-export-buttons">
                 <button id="download-chart" class="btn secondary chart-export-icon-btn" data-tooltip="Scarica grafico PNG">
                     <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -556,6 +558,14 @@
                             <small>Passaggi e note personalizzate.</small>
                         </span>
                         <input type="checkbox" id="toggle-directions-panel" class="switch-input">
+                        <span class="switch" aria-hidden="true"></span>
+                    </label>
+                    <label class="settings-row" for="toggle-marker-size">
+                        <span>
+                            <strong>Marker piccoli</strong>
+                            <small>Riduci la dimensione dei segnaposto sulla mappa.</small>
+                        </span>
+                        <input type="checkbox" id="toggle-marker-size" class="switch-input">
                         <span class="switch" aria-hidden="true"></span>
                     </label>
                     <label class="settings-row" for="toggle-osm-inspector">

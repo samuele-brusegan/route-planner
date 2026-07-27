@@ -885,23 +885,45 @@ function addMarkerToMap(markerData) {
         markerData: markerData
     });
 
-    const style = new ol.style.Style({
-        image: new ol.style.Circle({
-            radius: 10,
-            fill: new ol.style.Fill({
-                color: markerType.color
-            }),
-            stroke: new ol.style.Stroke({
-                color: '#fff',
-                width: 2
+    const isSmall = AppState.markerSize === 'small';
+    const markerRadius = isSmall ? 7 : 10;
+    const iconSize = isSmall ? 12 : 16;
+    const svgDim = markerRadius * 2 + 4;
+
+    // Check if icon is SVG path data (starts with <) or emoji
+    const isSvgIcon = markerType.icon && markerType.icon.trimStart().startsWith('<');
+
+    let style;
+    if (isSvgIcon) {
+        // Build full SVG with colored circle + white icon paths
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgDim}" height="${svgDim}" viewBox="0 0 ${svgDim} ${svgDim}">` +
+            `<circle cx="${svgDim/2}" cy="${svgDim/2}" r="${markerRadius}" fill="${markerType.color}" stroke="white" stroke-width="2"/>` +
+            `<g transform="translate(${(svgDim - iconSize)/2}, ${(svgDim - iconSize)/2}) scale(${iconSize/24})" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+            markerType.icon +
+            `</g></svg>`;
+        const dataUri = 'data:image/svg+xml;base64,' + btoa(svg);
+        style = new ol.style.Style({
+            image: new ol.style.Icon({
+                src: dataUri,
+                width: svgDim,
+                height: svgDim
             })
-        }),
-        text: new ol.style.Text({
-            text: markerType.icon,
-            font: '16px Arial',
-            offsetY: -8
-        })
-    });
+        });
+    } else {
+        // Fallback: emoji text on colored circle (for custom types)
+        style = new ol.style.Style({
+            image: new ol.style.Circle({
+                radius: markerRadius,
+                fill: new ol.style.Fill({ color: markerType.color }),
+                stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
+            }),
+            text: new ol.style.Text({
+                text: markerType.icon,
+                font: `${iconSize}px Arial`,
+                offsetY: -8
+            })
+        });
+    }
 
     feature.setStyle(style);
     markerLayer.getSource().addFeature(feature);

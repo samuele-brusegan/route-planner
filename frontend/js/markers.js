@@ -1,5 +1,14 @@
 // Marker management functions
 
+// Render a marker type icon as inline SVG (for UI lists) or fallback to emoji text
+function renderMarkerTypeIcon(markerType, size = 14) {
+    const isSvgIcon = markerType.icon && markerType.icon.trimStart().startsWith('<');
+    if (isSvgIcon) {
+        return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${markerType.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; flex-shrink: 0;">${markerType.icon}</svg>`;
+    }
+    return markerType.icon || '';
+}
+
 // Update markers list in UI
 function updateMarkersList() {
     const container = document.getElementById('markers-list');
@@ -28,7 +37,7 @@ function updateMarkersList() {
         item.innerHTML = `
             <div class="marker-info">
                 <div class="marker-name">${marker.name}</div>
-                <div class="marker-type">${markerType.icon} ${markerType.name}</div>
+                <div class="marker-type">${renderMarkerTypeIcon(markerType)} ${markerType.name}</div>
             </div>
             <div class="marker-actions">
                 <button onclick="editMarker('${marker.id}')" title="Modifica">✏️</button>
@@ -103,7 +112,7 @@ function updateMarkerTypesList() {
         item.innerHTML = `
             <div class="type-color" style="background-color: ${type.color}"></div>
             <div class="type-info">
-                <div class="type-name">${type.icon} ${type.name}</div>
+                <div class="type-name">${renderMarkerTypeIcon(type)} ${type.name}</div>
             </div>
             <div class="type-actions">
                 <button onclick="editMarkerType('${type.id}')" title="Modifica">✏️</button>
@@ -126,7 +135,7 @@ function editMarker(markerId) {
             <h3>Modifica Punto</h3>
             <select id="edit-marker-type">
                 ${AppState.markerTypes.map(type => 
-                    `<option value="${type.id}" ${type.id === marker.type ? 'selected' : ''}>${type.icon} ${type.name}</option>`
+                    `<option value="${type.id}" ${type.id === marker.type ? 'selected' : ''}>${type.name}</option>`
                 ).join('')}
             </select>
             <input type="text" id="edit-marker-name" value="${marker.name}" placeholder="Nome del punto">
